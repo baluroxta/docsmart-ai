@@ -17,6 +17,6 @@ if (fs.existsSync(frontendDir)) {
   }
 } else {
   console.log('[DocSmart Build] Running from frontend directory...');
-  execSync('npm run build', { stdio: 'inherit' });
+  execSync('npx vite build', { stdio: 'inherit' });
 }
 console.log('[DocSmart Build] Build completed successfully.');
