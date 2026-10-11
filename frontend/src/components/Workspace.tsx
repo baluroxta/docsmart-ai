@@ -249,8 +249,16 @@ export const Workspace: React.FC<WorkspaceProps> = ({
   // Handle file upload
   const handleFileUpload = async (file: File) => {
     setUploadError(null);
-    if (!file.name.toLowerCase().endsWith('.pdf') && !file.type.startsWith('image/')) {
-      setUploadError('Please upload a valid PDF or image document.');
+    const isAllowed =
+      file.name.toLowerCase().endsWith('.pdf') ||
+      file.type.startsWith('image/') ||
+      file.name.toLowerCase().endsWith('.png') ||
+      file.name.toLowerCase().endsWith('.jpg') ||
+      file.name.toLowerCase().endsWith('.jpeg') ||
+      file.name.toLowerCase().endsWith('.txt');
+
+    if (!isAllowed) {
+      setUploadError('Please upload a valid PDF, image, or document file.');
       return;
     }
     if (file.size > 15 * 1024 * 1024) {
@@ -262,7 +270,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({
       setUploading(true);
       const res = await api.uploadFile(file);
       await loadDocuments();
-      setSelectedDocId(res.document_id);
+      setSelectedDocId(res.document_id || res.id);
     } catch (err: any) {
       setUploadError(err.message || 'Upload processing failed.');
     } finally {
