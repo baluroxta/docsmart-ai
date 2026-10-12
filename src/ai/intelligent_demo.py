@@ -20,125 +20,108 @@ def _has_word(kw: str, text: str) -> bool:
 
 
 def demo_classify(text: str) -> dict[str, Any]:
-    """Classifies document based on explicit lexical signals with word-boundary precision."""
+    """Classifies document based on weighted multi-signal scoring across all domain schemas."""
     lower = text.lower()
 
-    # 1. Highest Priority: Professional Certifications & Academic Credentials
-    certificate_signals = [
-        "certificate", "certification", "certified", "credential", "diploma", "degree",
-        "accreditation", "awarded to", "completion", "licensed", "licensure", "badge",
-        "cloud practitioner", "solutions architect", "foundations associate",
-        "certified foundations", "has successfully completed", "oracle cloud infrastructure"
-    ]
-    cert_matches = sum(1 for kw in certificate_signals if _has_word(kw, lower))
-    if cert_matches >= 1:
-        return {
-            "document_type": "general",
-            "confidence": min(0.99, 0.90 + cert_matches * 0.03),
-            "reasoning": f"Identified {cert_matches} credential/certification marker(s) matching professional accreditation schema."
-        }
+    # 1. Resume & Curriculum Vitae Signals
+    resume_score = 0
+    if re.search(r"\b(curriculum vitae|resume|bio-data|biodata)\b", lower):
+        resume_score += 25
+    if re.search(r"\b(education|academic background|qualifications)\b", lower):
+        resume_score += 10
+    if re.search(r"\b(work experience|professional experience|employment history|internship|intern)\b", lower):
+        resume_score += 10
+    if re.search(r"\b(skills summary|technical skills|core competencies)\b", lower):
+        resume_score += 10
+    elif re.search(r"\b(skills)\b", lower):
+        resume_score += 5
+    if re.search(r"\b(academic projects|flagship projects|personal projects)\b", lower):
+        resume_score += 8
+    elif re.search(r"\b(projects)\b", lower):
+        resume_score += 4
+    if re.search(r"\b(bachelors?|masters?|b\.tech|m\.tech|b\.sc|m\.sc|phd|gpa|cgpa|cbse|degree in)\b", lower):
+        resume_score += 8
+    if re.search(r"\b[\w\.-]+@[\w\.-]+\.\w+\b", text[:350]):
+        resume_score += 6
 
-    # 2. Event Passes, Admission Tickets & Badges
-    event_signals = [
-        "e-summit", "summit", "general pass", "event pass", "delegate pass", "admission ticket",
-        "entry pass", "hall ticket", "conference pass"
-    ]
-    event_matches = sum(1 for kw in event_signals if _has_word(kw, lower))
-    if event_matches >= 1:
-        return {
-            "document_type": "general",
-            "confidence": min(0.99, 0.90 + event_matches * 0.03),
-            "reasoning": f"Identified {event_matches} event admission/pass marker(s) matching event credentials schema."
-        }
+    # 2. Commercial Invoices & Receipts Signals
+    invoice_score = 0
+    if re.search(r"\b(tax invoice|commercial invoice|sales invoice|proforma invoice)\b", lower):
+        invoice_score += 25
+    if re.search(r"\b(invoice (?:number|num|no|#)|inv[-\s]?[0-9]+)\b", lower):
+        invoice_score += 15
+    if re.search(r"\b(bill to|billed to|ship to|remit to)\b", lower):
+        invoice_score += 10
+    if re.search(r"\b(amount due|total amount due|balance due|total due)\b", lower):
+        invoice_score += 10
+    if re.search(r"\b(subtotal|line items?|unit price|gstin)\b", lower):
+        invoice_score += 8
 
-    # 3. Travel, Transit, Darshan & Hospitality Reservations
-    travel_signals = [
-        "booking confirmation", "booking.com", "electronic reservation slip", "irctc",
-        "train no", "railway", "pnr", "passenger details", "check-in", "check-out",
-        "reservation", "boarding pass", "flight no", "berth", "hotel", "darshan",
-        "special entry darshan", "tirumala tirupati", "pilgrim", "prasadam"
-    ]
-    travel_matches = sum(1 for kw in travel_signals if _has_word(kw, lower))
-    if travel_matches >= 1:
-        return {
-            "document_type": "general",
-            "confidence": min(0.99, 0.90 + travel_matches * 0.03),
-            "reasoning": f"Identified {travel_matches} travel, transit, or reservation marker(s) matching travel intelligence schema."
-        }
+    # 3. Legal Contracts & Agreements Signals
+    contract_score = 0
+    if re.search(r"\b(master (?:services?|software) agreement|non-disclosure agreement|confidentiality agreement)\b", lower):
+        contract_score += 25
+    if re.search(r"\b(this agreement is (?:entered into|made)|by and between)\b", lower):
+        contract_score += 15
+    if re.search(r"\b(in witness whereof|whereas,? the parties|party of the first part)\b", lower):
+        contract_score += 12
+    if re.search(r"\b(governing law|indemnification clause|limitation of liability)\b", lower):
+        contract_score += 10
 
-    # 4. Invoices, Receipts & Commercial Billing
-    invoice_keywords = [
-        "invoice", "tax invoice", "bill to", "remit to", "amount due", "balance due",
-        "subtotal", "gstin", "vat reg", "purchase order", "total amount due"
-    ]
-    invoice_matches = sum(1 for kw in invoice_keywords if _has_word(kw, lower))
-    if invoice_matches >= 1:
-        return {
-            "document_type": "invoice",
-            "confidence": min(0.99, 0.88 + invoice_matches * 0.03),
-            "reasoning": f"Identified {invoice_matches} commercial billing marker(s) matching invoice schema."
-        }
+    # 4. Official Forms & Declarations
+    form_score = 0
+    if re.search(r"\b(application form|registration form|intake form|enrollment form)\b", lower):
+        form_score += 20
+    if re.search(r"\b(i hereby declare|solemnly affirm|declaration|signature of applicant)\b", lower):
+        form_score += 12
 
-    # 5. Contracts & Legal Agreements
-    contract_keywords = [
-        "master services agreement", "terms and conditions", "party of the first part",
-        "hereby agree", "governing law", "confidentiality agreement",
-        "non-disclosure agreement", "contract agreement", "indemnification clause"
-    ]
-    contract_matches = sum(1 for kw in contract_keywords if _has_word(kw, lower))
-    if _has_word("nda", lower) and any(w in lower for w in ["agreement", "confidential", "disclose", "covenant"]):
-        contract_matches += 1
+    # 5. Travel & Transit Signals
+    travel_score = 0
+    if re.search(r"\b(booking confirmation|reservation confirmation|booking\.com|electronic reservation slip|irctc|boarding pass)\b", lower):
+        travel_score += 25
+    if re.search(r"\b(confirmation (?:number|no|#)|security pin|pin code)\b", lower):
+        travel_score += 15
+    if re.search(r"\b(check-in|check in)\b", lower) and re.search(r"\b(check-out|check out)\b", lower):
+        travel_score += 15
+    if re.search(r"\b(passenger details|guest name|pnr\s*(?:no|number)?)\b", lower):
+        travel_score += 10
 
-    if contract_matches >= 1:
-        return {
-            "document_type": "contract",
-            "confidence": min(0.98, 0.88 + contract_matches * 0.03),
-            "reasoning": f"Identified {contract_matches} legal covenant marker(s) matching contract schema."
-        }
+    # Decision Matrix: Highest specialized domain score wins
+    max_score = max(resume_score, invoice_score, contract_score, form_score, travel_score)
 
-    # 6. Resumes & Curriculum Vitae (Includes student resumes, developer profiles, and CVs)
-    resume_keywords = [
-        "curriculum vitae", "resume", "summary of qualifications", "work experience",
-        "employment history", "technical skills", "education history", "b.tech", "m.tech",
-        "cgpa", "academic projects", "job simulation", "career objective", "career overview",
-        "bachelor's degree", "master's degree", "bachelor of", "master of", "diploma", "professional experience"
-    ]
-    resume_matches = sum(1 for kw in resume_keywords if _has_word(kw, lower))
-    has_resume_layout = ("profile" in lower or "career" in lower) and any(
-        w in lower for w in ["experience", "education", "skills", "projects", "activities", "references"]
-    )
-    if resume_matches >= 1 or has_resume_layout:
+    if resume_score >= 15 and resume_score == max_score:
         return {
             "document_type": "resume",
-            "confidence": min(0.99, 0.90 + max(1, resume_matches) * 0.03),
-            "reasoning": "Identified candidate profile, academic history, and career credentials matching resume schema."
+            "confidence": min(0.99, 0.90 + (resume_score / 100)),
+            "reasoning": f"Identified dominant professional resume profile markers (score: {resume_score})."
         }
 
-    # 7. Official Forms, Declarations & Policy Acknowledgements
-    form_keywords = [
-        "application form", "intake form", "registration form", "signature:", "date of birth",
-        "declaration", "career development centre", "regulations, guidelines, and rules"
-    ]
-    form_matches = sum(1 for kw in form_keywords if _has_word(kw, lower))
-    if form_matches >= 1:
+    if invoice_score >= 15 and invoice_score == max_score:
+        return {
+            "document_type": "invoice",
+            "confidence": min(0.99, 0.90 + (invoice_score / 100)),
+            "reasoning": f"Identified commercial billing and invoice markers (score: {invoice_score})."
+        }
+
+    if contract_score >= 15 and contract_score == max_score:
+        return {
+            "document_type": "contract",
+            "confidence": min(0.99, 0.90 + (contract_score / 100)),
+            "reasoning": f"Identified binding legal covenant and agreement markers (score: {contract_score})."
+        }
+
+    if form_score >= 15 and form_score == max_score:
         return {
             "document_type": "form",
-            "confidence": 0.90,
-            "reasoning": "Identified institutional declaration or standard form input markers."
-        }
-
-    # 8. Universal General Document Fallback
-    if len(text.strip().split()) >= 6:
-        return {
-            "document_type": "general",
             "confidence": 0.92,
-            "reasoning": "Universal enterprise document structured for dynamic schema extraction."
+            "reasoning": f"Identified structured form and declaration markers (score: {form_score})."
         }
 
+    # Universal General Document (including travel bookings, passes, certificates, reports)
     return {
-        "document_type": "unknown",
-        "confidence": 0.45,
-        "reasoning": "Document contains insufficient text to determine structure."
+        "document_type": "general",
+        "confidence": 0.95 if travel_score > 0 else 0.90,
+        "reasoning": f"Classified under universal enterprise schema (travel markers: {travel_score}, general text)."
     }
 
 
@@ -323,7 +306,7 @@ def demo_extract_resume(text: str) -> dict[str, Any]:
         if re.match(r"^[A-Z][a-z]+[A-Z][a-z]+$", clean):
             candidate_name = re.sub(r"([a-z])([A-Z])", r"\1 \2", clean)
             break
-        if 1 <= len(clean.split()) <= 4 and not any(k in clean.lower() for k in ["resume", "curriculum", "email", "phone", "profile", "http", "@", "|"]):
+        if 1 <= len(clean.split()) <= 6 and not any(k in clean.lower() for k in ["education", "experience", "skills", "projects", "resume", "curriculum", "email", "phone", "profile", "http", "@", "|", "+"]):
             candidate_name = clean
             break
 
