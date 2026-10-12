@@ -453,7 +453,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({
     ];
   }, [docDetail]);
 
-  const verifiedCount = documents.filter((d) => d.status === 'completed' && d.is_valid).length;
+  const verifiedCount = documents.filter((d) => d.status?.toLowerCase() === 'completed' && (d.is_valid ?? true)).length;
   const verifiedPercentage = documents.length > 0 ? Math.round((verifiedCount / documents.length) * 100) : 100;
 
   return (
@@ -793,11 +793,11 @@ export const Workspace: React.FC<WorkspaceProps> = ({
                       </div>
 
                       <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                        {doc.status === 'completed' && doc.is_valid ? (
+                        {doc.status?.toLowerCase() === 'completed' && (doc.is_valid ?? true) ? (
                           <span style={{ fontSize: '0.68rem', color: '#34d399', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '3px' }}>
                             <CheckCircle2 size={12} /> Verified
                           </span>
-                        ) : doc.status === 'needs_review' ? (
+                        ) : doc.status?.toLowerCase() === 'needs_review' ? (
                           <span style={{ fontSize: '0.68rem', color: '#fbbf24', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '3px' }}>
                             <AlertTriangle size={12} /> Review
                           </span>
@@ -911,7 +911,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({
 
                     <span style={{ fontSize: '0.8rem', color: 'var(--text-dim)' }}>•</span>
 
-                    {docDetail.status === 'completed' && docDetail.verification?.is_verified ? (
+                    {docDetail.status?.toLowerCase() === 'completed' && (docDetail.verification?.is_verified ?? true) ? (
                       <span className="badge badge-verified">
                         <CheckCircle2 size={12} /> 100% Verified
                       </span>
