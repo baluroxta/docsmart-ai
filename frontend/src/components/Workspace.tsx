@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   Upload,
   FileText,
@@ -18,6 +18,19 @@ import {
   Info,
   Copy,
   Check,
+  Award,
+  Ticket,
+  User,
+  Scale,
+  Calendar,
+  DollarSign,
+  Filter,
+  RefreshCw,
+  Database,
+  ArrowUpRight,
+  Send,
+  Zap,
+  Activity,
 } from 'lucide-react';
 import {
   api,
@@ -35,7 +48,6 @@ const FormattedAnswer: React.FC<{ text: string }> = ({ text }) => {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  // Helper to parse bold **bold text**
   const parseInline = (line: string) => {
     const parts = line.split(/(\*\*[^*]+\*\*)/g);
     return parts.map((part, i) => {
@@ -83,7 +95,6 @@ const FormattedAnswer: React.FC<{ text: string }> = ({ text }) => {
             return <div key={idx} style={{ height: '6px' }} />;
           }
 
-          // Bullet point (starts with -, *, or •)
           if (/^[-*•]\s+/.test(trimmed)) {
             const content = trimmed.replace(/^[-*•]\s+/, '');
             return (
@@ -94,7 +105,6 @@ const FormattedAnswer: React.FC<{ text: string }> = ({ text }) => {
             );
           }
 
-          // Numbered list (starts with 1., 2., etc.)
           const numMatch = trimmed.match(/^([0-9]{1,2})\.\s+(.+)$/);
           if (numMatch) {
             return (
@@ -118,7 +128,6 @@ const FormattedAnswer: React.FC<{ text: string }> = ({ text }) => {
             );
           }
 
-          // Heading or bold label
           if (trimmed.startsWith('**') && trimmed.endsWith('**') && trimmed.length < 50) {
             return (
               <div key={idx} style={{ color: '#38bdf8', fontWeight: 700, fontSize: '0.95rem', marginTop: '4px' }}>
@@ -138,43 +147,8 @@ const FormattedAnswer: React.FC<{ text: string }> = ({ text }) => {
   );
 };
 
-const getCategoryBadge = (doc: DocumentItem) => {
-  const dt = doc.document_type?.toLowerCase();
-  const cat = (doc.extracted_data?.document_category || '').toLowerCase();
-  const fn = doc.filename.toLowerCase();
-
-  if (cat.includes('railway') || cat.includes('train') || fn.includes('irctc') || fn.includes('4953281463')) {
-    return { label: 'Railway Ticket', bg: 'rgba(245, 158, 11, 0.15)', color: '#fbbf24' };
-  }
-  if (cat.includes('flight') || cat.includes('airline') || fn.includes('flight') || fn.includes('ticket')) {
-    return { label: 'Flight Ticket', bg: 'rgba(14, 165, 233, 0.15)', color: '#38bdf8' };
-  }
-  if (cat.includes('booking') || cat.includes('hotel') || fn.includes('booking')) {
-    return { label: 'Travel Booking', bg: 'rgba(99, 102, 241, 0.15)', color: '#818cf8' };
-  }
-  if (cat.includes('medical') || cat.includes('clinical') || fn.includes('medical') || fn.includes('patient')) {
-    return { label: 'Healthcare', bg: 'rgba(244, 63, 94, 0.15)', color: '#fb7185' };
-  }
-  if (cat.includes('bank') || cat.includes('financial') || fn.includes('statement') || fn.includes('bank')) {
-    return { label: 'Banking', bg: 'rgba(16, 185, 129, 0.15)', color: '#34d399' };
-  }
-  if (dt === 'invoice') {
-    return { label: 'Invoice', bg: 'rgba(14, 165, 233, 0.15)', color: '#38bdf8' };
-  }
-  if (dt === 'contract') {
-    return { label: 'Contract', bg: 'rgba(168, 85, 247, 0.15)', color: '#c084fc' };
-  }
-  if (dt === 'resume') {
-    return { label: 'Resume / CV', bg: 'rgba(16, 185, 129, 0.15)', color: '#34d399' };
-  }
-  if (cat) {
-    return { label: cat.slice(0, 18), bg: 'rgba(255, 255, 255, 0.08)', color: '#cbd5e1' };
-  }
-  return { label: doc.document_type || 'General', bg: 'rgba(255, 255, 255, 0.08)', color: '#cbd5e1' };
-};
-
 interface WorkspaceProps {
-  onSeedSamples: () => void;
+  onSeedSamples: () => Promise<void>;
   isSeeding: boolean;
 }
 
@@ -185,35 +159,39 @@ export const Workspace: React.FC<WorkspaceProps> = ({
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
   const [selectedDocId, setSelectedDocId] = useState<string | null>(null);
   const [docDetail, setDocDetail] = useState<DocumentDetail | null>(null);
-  const [rawText, setRawText] = useState<string | null>(null);
-  const [loadingDocs, setLoadingDocs] = useState<boolean>(false);
-  const [loadingDetail, setLoadingDetail] = useState<boolean>(false);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [detailLoading, setDetailLoading] = useState<boolean>(false);
   const [uploading, setUploading] = useState<boolean>(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [reprocessing, setReprocessing] = useState<boolean>(false);
 
-  // Inspector tabs: 'extraction' | 'verification' | 'qa' | 'audit' | 'raw'
+  // Search & Filter state
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [categoryFilter, setCategoryFilter] = useState<string>('ALL');
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
+
+  // Detail view state
   const [activeTab, setActiveTab] = useState<'extraction' | 'verification' | 'qa' | 'audit' | 'raw'>('extraction');
-
-  // Q&A state
   const [qaQuestion, setQaQuestion] = useState<string>('');
   const [qaLoading, setQaLoading] = useState<boolean>(false);
   const [qaHistory, setQaHistory] = useState<Array<{ q: string; a: QAResponse }>>([]);
+  const [rawText, setRawText] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const qaBottomRef = useRef<HTMLDivElement>(null);
 
-  // Fetch document library
   const loadDocuments = async () => {
     try {
-      setLoadingDocs(true);
-      const res = await api.getDocuments();
-      setDocuments(res.items);
-      if (res.items.length > 0 && !selectedDocId) {
-        setSelectedDocId(res.items[0].id);
+      setLoading(true);
+      const data = await api.getDocuments();
+      setDocuments(data.items);
+      if (data.items.length > 0 && !selectedDocId) {
+        setSelectedDocId(data.items[0].id);
       }
     } catch (err: any) {
-      console.error(err);
+      console.error('Failed to load documents:', err);
     } finally {
-      setLoadingDocs(false);
+      setLoading(false);
     }
   };
 
@@ -221,58 +199,43 @@ export const Workspace: React.FC<WorkspaceProps> = ({
     loadDocuments();
   }, []);
 
-  // Fetch document details when selection changes
   useEffect(() => {
-    if (!selectedDocId) {
-      setDocDetail(null);
-      setRawText(null);
-      return;
-    }
+    if (!selectedDocId) return;
 
-    const loadDetail = async () => {
+    const fetchDetail = async () => {
       try {
-        setLoadingDetail(true);
+        setDetailLoading(true);
+        setRawText(null);
+        setQaHistory([]);
         const detail = await api.getDocumentDetail(selectedDocId);
         setDocDetail(detail);
-        // Reset QA history on document change
-        setQaHistory([]);
-      } catch (err) {
-        console.error(err);
+      } catch (err: any) {
+        console.error('Failed to load document detail:', err);
       } finally {
-        setLoadingDetail(false);
+        setDetailLoading(false);
       }
     };
 
-    loadDetail();
+    fetchDetail();
   }, [selectedDocId]);
 
-  // Handle file upload
+  useEffect(() => {
+    if (activeTab === 'qa') {
+      qaBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [qaHistory, activeTab]);
+
   const handleFileUpload = async (file: File) => {
-    setUploadError(null);
-    const isAllowed =
-      file.name.toLowerCase().endsWith('.pdf') ||
-      file.type.startsWith('image/') ||
-      file.name.toLowerCase().endsWith('.png') ||
-      file.name.toLowerCase().endsWith('.jpg') ||
-      file.name.toLowerCase().endsWith('.jpeg') ||
-      file.name.toLowerCase().endsWith('.txt');
-
-    if (!isAllowed) {
-      setUploadError('Please upload a valid PDF, image, or document file.');
-      return;
-    }
-    if (file.size > 15 * 1024 * 1024) {
-      setUploadError('File exceeds 15MB limit.');
-      return;
-    }
-
     try {
       setUploading(true);
+      setUploadError(null);
       const res = await api.uploadFile(file);
       await loadDocuments();
-      setSelectedDocId(res.document_id || res.id);
+      if (res.document_id) {
+        setSelectedDocId(res.document_id);
+      }
     } catch (err: any) {
-      setUploadError(err.message || 'Upload processing failed.');
+      setUploadError(err.message || 'Failed to upload document');
     } finally {
       setUploading(false);
     }
@@ -285,23 +248,37 @@ export const Workspace: React.FC<WorkspaceProps> = ({
     }
   };
 
-  // Q&A submit
-  const handleAskQA = async (qText?: string) => {
-    const q = (qText || qaQuestion).trim();
-    if (!q || !selectedDocId) return;
+  const handleReprocess = async () => {
+    if (!selectedDocId) return;
+    try {
+      setReprocessing(true);
+      await api.reprocess(selectedDocId);
+      await loadDocuments();
+      const updated = await api.getDocumentDetail(selectedDocId);
+      setDocDetail(updated);
+    } catch (err) {
+      console.error('Reprocess failed:', err);
+    } finally {
+      setReprocessing(false);
+    }
+  };
+
+  const handleAskQA = async (questionText?: string) => {
+    const q = (questionText || qaQuestion).trim();
+    if (!selectedDocId || !q || qaLoading) return;
 
     try {
       setQaLoading(true);
+      if (!questionText) setQaQuestion('');
       const res = await api.askQA(selectedDocId, q);
       setQaHistory((prev) => [...prev, { q, a: res }]);
-      setQaQuestion('');
     } catch (err: any) {
       setQaHistory((prev) => [
         ...prev,
         {
           q,
           a: {
-            answer: `Error answering question: ${err.message}`,
+            answer: `Error: ${err.message}`,
             found: false,
             citations: [],
             confidence: 0,
@@ -313,7 +290,6 @@ export const Workspace: React.FC<WorkspaceProps> = ({
     }
   };
 
-  // Fetch raw text on demand
   const handleLoadRawText = async () => {
     if (!selectedDocId || rawText) return;
     try {
@@ -324,268 +300,556 @@ export const Workspace: React.FC<WorkspaceProps> = ({
     }
   };
 
-  const handleReprocess = async () => {
-    if (!selectedDocId) return;
-    try {
-      await api.reprocess(selectedDocId);
-      await loadDocuments();
-      const updated = await api.getDocumentDetail(selectedDocId);
-      setDocDetail(updated);
-    } catch (err) {
-      console.error(err);
-    }
+  const copyToClipboard = (text: string, keyIdentifier: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedKey(keyIdentifier);
+    setTimeout(() => setCopiedKey(null), 2000);
   };
 
+  // Helper to categorize documents cleanly
+  const getDocCategory = (doc: DocumentItem | DocumentDetail): string => {
+    const rawCat = doc.extracted_data?.document_category;
+    if (rawCat) return rawCat;
+    if (doc.document_type === 'invoice') return 'Commercial Invoice';
+    if (doc.document_type === 'contract') return 'Legal Agreement';
+    if (doc.document_type === 'resume') return 'Curriculum Vitae / Resume';
+    if (doc.document_type === 'form') return 'Form / Declaration';
+    return 'Enterprise Document';
+  };
+
+  const getDocIcon = (doc: DocumentItem | DocumentDetail) => {
+    const cat = getDocCategory(doc).toLowerCase();
+    if (cat.includes('cert') || cat.includes('accred')) return <Award size={16} color="#c084fc" />;
+    if (cat.includes('ticket') || cat.includes('pass') || cat.includes('travel') || cat.includes('darshan') || cat.includes('reservation')) return <Ticket size={16} color="#34d399" />;
+    if (cat.includes('invoice') || cat.includes('bill') || cat.includes('receipt')) return <FileText size={16} color="#38bdf8" />;
+    if (cat.includes('contract') || cat.includes('nda') || cat.includes('agreement')) return <Scale size={16} color="#fbbf24" />;
+    if (cat.includes('resume') || cat.includes('cv') || cat.includes('candidate')) return <User size={16} color="#f472b6" />;
+    if (cat.includes('form') || cat.includes('declaration')) return <FileCheck size={16} color="#818cf8" />;
+    if (cat.includes('health') || cat.includes('clinic') || cat.includes('medical')) return <Activity size={16} color="#ef4444" />;
+    if (cat.includes('bank') || cat.includes('financ') || cat.includes('statement')) return <DollarSign size={16} color="#10b981" />;
+    return <FileText size={16} color="#94a3b8" />;
+  };
+
+  // Filtered documents
+  const filteredDocuments = useMemo(() => {
+    return documents.filter((doc) => {
+      const matchesSearch =
+        searchQuery === '' ||
+        doc.filename.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        getDocCategory(doc).toLowerCase().includes(searchQuery.toLowerCase());
+
+      if (!matchesSearch) return false;
+
+      if (categoryFilter === 'ALL') return true;
+      const cat = getDocCategory(doc).toLowerCase();
+      if (categoryFilter === 'CERTIFICATES') return cat.includes('cert') || cat.includes('accred');
+      if (categoryFilter === 'TRAVEL') return cat.includes('travel') || cat.includes('ticket') || cat.includes('pass') || cat.includes('darshan') || cat.includes('reservation');
+      if (categoryFilter === 'INVOICES') return cat.includes('invoice') || cat.includes('bill') || doc.document_type === 'invoice';
+      if (categoryFilter === 'CONTRACTS') return cat.includes('contract') || cat.includes('nda') || cat.includes('agreement') || doc.document_type === 'contract';
+      if (categoryFilter === 'RESUMES') return cat.includes('resume') || cat.includes('cv') || doc.document_type === 'resume';
+      if (categoryFilter === 'FORMS') return cat.includes('form') || cat.includes('declaration') || doc.document_type === 'form';
+      if (categoryFilter === 'FINANCIAL') return cat.includes('bank') || cat.includes('financ') || cat.includes('statement');
+      if (categoryFilter === 'HEALTHCARE') return cat.includes('health') || cat.includes('clinic') || cat.includes('medical');
+      return true;
+    });
+  }, [documents, searchQuery, categoryFilter]);
+
+  // Suggested questions based on detected category
+  const suggestedQuestions = useMemo(() => {
+    if (!docDetail) return [];
+    const cat = getDocCategory(docDetail).toLowerCase();
+    if (cat.includes('cert') || cat.includes('accred')) {
+      return [
+        'Who was this certificate awarded to?',
+        'What is the validation ID / verification code?',
+        'What is the validity period and issue date?',
+        'Which issuing authority awarded this credential?',
+      ];
+    }
+    if (cat.includes('darshan') || cat.includes('temple')) {
+      return [
+        'Who are the pilgrims registered on this slip?',
+        'What is the reporting venue and time slot?',
+        'What is the group booking ID?',
+        'What is the darshan date and fee?',
+      ];
+    }
+    if (cat.includes('travel') || cat.includes('ticket') || cat.includes('reservation')) {
+      return [
+        'Who is the primary guest / traveler?',
+        'What is the confirmation number / PNR?',
+        'What are the check-in and check-out dates?',
+        'What was the total fare or price paid?',
+      ];
+    }
+    if (cat.includes('event') || cat.includes('pass')) {
+      return [
+        'Who is the authorized attendee for this pass?',
+        'What organization or college is represented?',
+        'What is the event name and pass category?',
+      ];
+    }
+    if (cat.includes('resume') || cat.includes('cv')) {
+      return [
+        'What are the candidate\'s core technical skills?',
+        'What is the candidate\'s education history?',
+        'What is the candidate\'s direct contact info?',
+      ];
+    }
+    if (cat.includes('invoice') || cat.includes('bill')) {
+      return [
+        'What is the total amount due?',
+        'What is the invoice number and issue date?',
+        'Who is the vendor and billing recipient?',
+      ];
+    }
+    if (cat.includes('contract') || cat.includes('agreement')) {
+      return [
+        'Who are the primary contracting parties?',
+        'What is the effective date and expiration date?',
+        'What is the governing law jurisdiction?',
+      ];
+    }
+    if (cat.includes('health') || cat.includes('clinic') || cat.includes('medical')) {
+      return [
+        'Who is the patient and attending physician?',
+        'What is the clinical assessment / diagnosis?',
+        'What medication was prescribed?',
+        'What follow-up or instructions are recorded?',
+      ];
+    }
+    if (cat.includes('bank') || cat.includes('financ') || cat.includes('statement')) {
+      return [
+        'Who is the account holder and what is the account number?',
+        'What is the closing balance and opening balance?',
+        'What is the statement reporting period?',
+        'What were the recorded deposit and debit totals?',
+      ];
+    }
+    return [
+      'Give me an executive summary of this document',
+      'What are the primary dates mentioned?',
+      'Who are the primary entities or persons involved?',
+    ];
+  }, [docDetail]);
+
+  const verifiedCount = documents.filter((d) => d.status === 'completed' && d.is_valid).length;
+  const verifiedPercentage = documents.length > 0 ? Math.round((verifiedCount / documents.length) * 100) : 100;
+
   return (
-    <div style={{ maxWidth: '1400px', margin: '24px auto 80px auto', padding: '0 24px' }}>
-      {/* Upload Zone & Quick Actions */}
+    <div style={{ maxWidth: '1440px', margin: '24px auto 80px auto', padding: '0 28px' }}>
+      {/* Enterprise Platform Intelligence Header */}
       <div style={{
         display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
-        gap: '20px',
+        gridTemplateColumns: 'minmax(340px, 1.2fr) minmax(340px, 1fr)',
+        gap: '24px',
         marginBottom: '28px',
       }}>
-        {/* Drag & Drop Upload Card */}
+        {/* Drag & Drop Universal Upload Card */}
         <div
           className="glass-panel glass-panel-glow"
           onDragOver={(e) => e.preventDefault()}
           onDrop={handleDrop}
           onClick={() => fileInputRef.current?.click()}
           style={{
-            padding: '24px',
+            padding: '24px 28px',
             borderStyle: 'dashed',
             borderWidth: '2px',
             borderColor: uploading ? 'var(--accent-cyan)' : 'var(--border-medium)',
             cursor: 'pointer',
-            textAlign: 'center',
-            background: 'rgba(17, 24, 39, 0.6)',
+            background: 'linear-gradient(135deg, rgba(14, 21, 37, 0.7) 0%, rgba(15, 23, 42, 0.8) 100%)',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'center',
+            position: 'relative',
+            overflow: 'hidden',
           }}
         >
           <input
             type="file"
             ref={fileInputRef}
             style={{ display: 'none' }}
-            accept=".pdf,.png,.jpg,.jpeg"
+            accept=".pdf,.png,.jpg,.jpeg,.webp,.bmp,.txt"
             onChange={(e) => {
               if (e.target.files && e.target.files[0]) {
                 handleFileUpload(e.target.files[0]);
               }
             }}
           />
-          <div style={{
-            width: '44px',
-            height: '44px',
-            borderRadius: '50%',
-            background: 'rgba(14, 165, 233, 0.15)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            margin: '0 auto 12px auto',
-          }}>
-            <Upload size={22} color="var(--accent-cyan)" />
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+            <div style={{
+              width: '52px',
+              height: '52px',
+              borderRadius: '12px',
+              background: 'linear-gradient(135deg, rgba(14, 165, 233, 0.2) 0%, rgba(59, 130, 246, 0.2) 100%)',
+              border: '1px solid rgba(14, 165, 233, 0.4)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+            }}>
+              {uploading ? (
+                <RefreshCw size={24} color="var(--accent-cyan)" className="animate-spin" />
+              ) : (
+                <Upload size={24} color="var(--accent-cyan)" />
+              )}
+            </div>
+            <div>
+              <div style={{ fontWeight: 800, fontSize: '1.05rem', color: '#ffffff' }}>
+                {uploading ? 'Analyzing Document with AI Pipeline...' : 'Universal Document Ingestion'}
+              </div>
+              <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginTop: '3px' }}>
+                Drop ANY file here: Digital/Scanned PDFs, Images (PNG, JPG), Certificates, Tickets, Contracts, Invoices
+              </div>
+            </div>
           </div>
-          <div style={{ fontWeight: 700, fontSize: '1rem', color: '#ffffff' }}>
-            {uploading ? 'Processing Document with AI Pipeline...' : 'Upload Business Document'}
+
+          <div style={{ display: 'flex', gap: '8px', marginTop: '16px', flexWrap: 'wrap' }}>
+            <span style={{ fontSize: '0.72rem', padding: '3px 8px', borderRadius: '4px', background: 'rgba(255, 255, 255, 0.05)', color: 'var(--text-muted)', border: '1px solid var(--border-subtle)' }}>
+              PDF Native & Scanned
+            </span>
+            <span style={{ fontSize: '0.72rem', padding: '3px 8px', borderRadius: '4px', background: 'rgba(255, 255, 255, 0.05)', color: 'var(--text-muted)', border: '1px solid var(--border-subtle)' }}>
+              PNG / JPG OCR
+            </span>
+            <span style={{ fontSize: '0.72rem', padding: '3px 8px', borderRadius: '4px', background: 'rgba(255, 255, 255, 0.05)', color: 'var(--text-muted)', border: '1px solid var(--border-subtle)' }}>
+              Up to 15MB
+            </span>
+            <span style={{ fontSize: '0.72rem', padding: '3px 8px', borderRadius: '4px', background: 'rgba(16, 185, 129, 0.1)', color: '#34d399', border: '1px solid rgba(16, 185, 129, 0.25)' }}>
+              Deterministic Validation
+            </span>
           </div>
-          <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '4px' }}>
-            Drag & drop PDF, PNG, or JPG (Up to 15MB)
-          </div>
+
           {uploadError && (
-            <div style={{ color: 'var(--status-error-text)', fontSize: '0.8rem', marginTop: '8px' }}>
-              {uploadError}
+            <div style={{ color: 'var(--status-error-text)', fontSize: '0.8rem', marginTop: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <AlertTriangle size={14} /> {uploadError}
             </div>
           )}
         </div>
 
-        {/* Quick Demo Pre-sets Card */}
-        <div className="glass-panel" style={{ padding: '24px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-          <div style={{ fontSize: '0.8rem', color: 'var(--accent-cyan)', fontWeight: 700, textTransform: 'uppercase', marginBottom: '6px' }}>
-            Recruiter & Interview Demo Set
+        {/* Enterprise Pipeline Telemetry & Controls */}
+        <div className="glass-panel" style={{ padding: '24px 28px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+          <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+              <span style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--accent-cyan)' }}>
+                System Telemetry & Engine Status
+              </span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.75rem', color: '#34d399', fontWeight: 600 }}>
+                <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#34d399', boxShadow: '0 0 8px #34d399' }} /> Live Pipeline
+              </span>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px' }}>
+              <div style={{ background: 'rgba(255, 255, 255, 0.03)', padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border-subtle)' }}>
+                <div style={{ fontSize: '0.68rem', color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700 }}>Documents</div>
+                <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#ffffff', marginTop: '2px' }}>{documents.length}</div>
+              </div>
+
+              <div style={{ background: 'rgba(255, 255, 255, 0.03)', padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border-subtle)' }}>
+                <div style={{ fontSize: '0.68rem', color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700 }}>Audit Rate</div>
+                <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#34d399', marginTop: '2px' }}>{verifiedPercentage}%</div>
+              </div>
+
+              <div style={{ background: 'rgba(255, 255, 255, 0.03)', padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border-subtle)' }}>
+                <div style={{ fontSize: '0.68rem', color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700 }}>OCR Engine</div>
+                <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#38bdf8', marginTop: '2px' }}>Native</div>
+              </div>
+
+              <div style={{ background: 'rgba(255, 255, 255, 0.03)', padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border-subtle)' }}>
+                <div style={{ fontSize: '0.68rem', color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700 }}>Grounded</div>
+                <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#c084fc', marginTop: '2px' }}>100%</div>
+              </div>
+            </div>
           </div>
-          <div style={{ fontSize: '1rem', fontWeight: 700, color: '#ffffff', marginBottom: '8px' }}>
-            Instant Pre-Configured Enterprise Documents
-          </div>
-          <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginBottom: '14px', lineHeight: '1.5' }}>
-            Click below to automatically ingest sample documents (Acme Invoice, SaaS MSA, AI Engineer Resume) for immediate testing.
-          </p>
-          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+
+          <div style={{ display: 'flex', gap: '10px', marginTop: '16px', alignItems: 'center' }}>
             <button
-              className="btn-primary"
+              className="btn-secondary"
               onClick={async () => {
                 await onSeedSamples();
                 await loadDocuments();
               }}
               disabled={isSeeding}
-              style={{ fontSize: '0.82rem', padding: '8px 16px' }}
+              style={{ fontSize: '0.8rem', padding: '8px 14px', flex: 1 }}
+              title="Add enterprise benchmark test corpus"
             >
-              <Sparkles size={15} /> {isSeeding ? 'Seeding...' : 'Load All 3 Demo Files'}
+              <Database size={14} color="var(--accent-cyan)" /> {isSeeding ? 'Ingesting...' : 'Ingest Benchmark Suite'}
             </button>
             <button
               className="btn-secondary"
               onClick={loadDocuments}
-              style={{ fontSize: '0.82rem', padding: '8px 14px' }}
+              style={{ fontSize: '0.8rem', padding: '8px 14px' }}
+              title="Refresh queue"
             >
-              Refresh Library
+              <RefreshCw size={14} /> Refresh
             </button>
           </div>
         </div>
       </div>
 
-      {/* Workspace Split Layout: Document Library & Detailed Inspector */}
+      {/* Main Workspace Layout */}
       <div style={{
         display: 'grid',
-        gridTemplateColumns: '320px 1fr',
+        gridTemplateColumns: '360px 1fr',
         gap: '24px',
         alignItems: 'start',
       }}>
-        {/* Left Column: Document Library */}
+        {/* Left Column: Document Queue & Explorer */}
         <div className="glass-panel" style={{ padding: '20px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
             <h2 style={{ fontSize: '1.05rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
               <Layers size={18} color="var(--accent-cyan)" /> Document Queue
             </h2>
-            <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-              {documents.length} File(s)
+            <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+              {filteredDocuments.length} of {documents.length}
             </span>
           </div>
 
-          {loadingDocs && documents.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '30px 0', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-              Loading queue...
-            </div>
-          ) : documents.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '30px 0', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-              No documents yet. Upload a file above or click "Load Demo Files".
-            </div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '680px', overflowY: 'auto' }}>
-              {documents.map((doc) => {
+          {/* Search Box */}
+          <div style={{
+            position: 'relative',
+            marginBottom: '14px',
+          }}>
+            <Search size={15} color="var(--text-dim)" style={{ position: 'absolute', left: '12px', top: '10px' }} />
+            <input
+              type="text"
+              placeholder="Search by file or category..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '8px 12px 8px 34px',
+                borderRadius: '8px',
+                background: 'rgba(255, 255, 255, 0.04)',
+                border: '1px solid var(--border-subtle)',
+                color: '#ffffff',
+                fontSize: '0.82rem',
+                outline: 'none',
+              }}
+            />
+          </div>
+
+          {/* Category Filter Chips */}
+          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '16px' }}>
+            {[
+              { id: 'ALL', label: 'All' },
+              { id: 'CERTIFICATES', label: 'Credentials' },
+              { id: 'TRAVEL', label: 'Travel/Tickets' },
+              { id: 'INVOICES', label: 'Invoices' },
+              { id: 'CONTRACTS', label: 'Contracts' },
+              { id: 'RESUMES', label: 'CVs' },
+              { id: 'FORMS', label: 'Forms' },
+              { id: 'FINANCIAL', label: 'Banking/Finance' },
+              { id: 'HEALTHCARE', label: 'Healthcare' },
+            ].map((f) => (
+              <button
+                key={f.id}
+                onClick={() => setCategoryFilter(f.id)}
+                style={{
+                  padding: '3px 8px',
+                  borderRadius: '6px',
+                  fontSize: '0.7rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  border: 'none',
+                  background: categoryFilter === f.id ? 'var(--accent-cyan)' : 'rgba(255, 255, 255, 0.05)',
+                  color: categoryFilter === f.id ? '#080c14' : 'var(--text-muted)',
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Document List */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '680px', overflowY: 'auto' }}>
+            {loading ? (
+              <div style={{ textAlign: 'center', padding: '30px 0', color: 'var(--text-dim)', fontSize: '0.85rem' }}>
+                Loading documents...
+              </div>
+            ) : filteredDocuments.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '30px 0', color: 'var(--text-dim)', fontSize: '0.85rem' }}>
+                No documents match this filter.
+              </div>
+            ) : (
+              filteredDocuments.map((doc) => {
                 const isSelected = doc.id === selectedDocId;
+                const category = getDocCategory(doc);
                 return (
                   <div
                     key={doc.id}
                     onClick={() => setSelectedDocId(doc.id)}
                     style={{
                       padding: '12px 14px',
-                      borderRadius: 'var(--radius-md)',
-                      background: isSelected ? 'rgba(14, 165, 233, 0.12)' : 'rgba(255, 255, 255, 0.02)',
-                      border: `1px solid ${isSelected ? 'var(--accent-cyan)' : 'var(--border-subtle)'}`,
+                      borderRadius: '8px',
                       cursor: 'pointer',
+                      background: isSelected
+                        ? 'linear-gradient(135deg, rgba(14, 165, 233, 0.14) 0%, rgba(59, 130, 246, 0.14) 100%)'
+                        : 'rgba(255, 255, 255, 0.02)',
+                      border: isSelected
+                        ? '1px solid rgba(56, 189, 248, 0.45)'
+                        : '1px solid var(--border-subtle)',
                       transition: 'all 0.15s ease',
+                      position: 'relative',
                     }}
                   >
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
-                      {(() => {
-                        const bInfo = getCategoryBadge(doc);
-                        return (
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+                      <div style={{ marginTop: '2px' }}>
+                        {getDocIcon(doc)}
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{
+                          fontWeight: isSelected ? 700 : 600,
+                          fontSize: '0.86rem',
+                          color: isSelected ? '#ffffff' : '#e2e8f0',
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                        }}>
+                          {doc.filename}
+                        </div>
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px' }}>
                           <span style={{
-                            fontSize: '0.72rem',
-                            fontWeight: 700,
-                            textTransform: 'uppercase',
-                            padding: '2px 8px',
+                            fontSize: '0.68rem',
+                            fontWeight: 600,
+                            padding: '1px 6px',
                             borderRadius: '4px',
-                            background: bInfo.bg,
-                            color: bInfo.color,
-                            letterSpacing: '0.03em',
+                            background: 'rgba(255, 255, 255, 0.05)',
+                            color: 'var(--text-muted)',
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            maxWidth: '170px',
                           }}>
-                            {bInfo.label}
+                            {category}
                           </span>
-                        );
-                      })()}
-                      <span className={`badge ${doc.status === 'completed' ? 'badge-verified' : doc.status === 'needs_review' ? 'badge-review' : 'badge-neutral'}`} style={{ fontSize: '0.68rem', padding: '2px 6px' }}>
-                        {doc.status}
-                      </span>
-                    </div>
+                        </div>
+                      </div>
 
-                    <div style={{
-                      fontSize: '0.88rem',
-                      fontWeight: 600,
-                      color: isSelected ? '#ffffff' : 'var(--text-main)',
-                      whiteSpace: 'nowrap',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                    }}>
-                      {doc.filename}
-                    </div>
-
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.74rem', color: 'var(--text-dim)', marginTop: '4px' }}>
-                      <span>{new Date(doc.created_at).toLocaleDateString()}</span>
-                      {doc.confidence !== null && (
-                        <span>Confidence: {Math.round(doc.confidence * 100)}%</span>
-                      )}
+                      <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                        {doc.status === 'completed' && doc.is_valid ? (
+                          <span style={{ fontSize: '0.68rem', color: '#34d399', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '3px' }}>
+                            <CheckCircle2 size={12} /> Verified
+                          </span>
+                        ) : doc.status === 'needs_review' ? (
+                          <span style={{ fontSize: '0.68rem', color: '#fbbf24', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '3px' }}>
+                            <AlertTriangle size={12} /> Review
+                          </span>
+                        ) : (
+                          <span style={{ fontSize: '0.68rem', color: 'var(--text-dim)' }}>
+                            {doc.status}
+                          </span>
+                        )}
+                        {doc.confidence !== null && (
+                          <div style={{ fontSize: '0.65rem', color: 'var(--text-dim)', marginTop: '2px' }}>
+                            {Math.round(doc.confidence * 100)}% conf
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 );
-              })}
-            </div>
-          )}
+              })
+            )}
+          </div>
         </div>
 
-        {/* Right Column: Detailed Inspector */}
-        <div className="glass-panel" style={{ padding: '28px', minHeight: '680px' }}>
-          {!selectedDocId ? (
-            <div style={{ textAlign: 'center', padding: '80px 20px', color: 'var(--text-muted)' }}>
-              <FileText size={48} color="var(--border-medium)" style={{ margin: '0 auto 16px auto' }} />
-              <div style={{ fontSize: '1.2rem', fontWeight: 600, color: '#ffffff', marginBottom: '6px' }}>No Document Selected</div>
-              <div style={{ fontSize: '0.88rem' }}>Select a document from the queue on the left to inspect extractions, verification checks, and Q&A.</div>
+        {/* Right Column: Detailed Document Inspector */}
+        <div className="glass-panel" style={{ padding: '28px', minHeight: '700px' }}>
+          {!selectedDocId || !docDetail ? (
+            <div style={{ textAlign: 'center', padding: '100px 0', color: 'var(--text-dim)' }}>
+              <FileText size={48} style={{ margin: '0 auto 16px auto', opacity: 0.3 }} />
+              <div>Select a document from the queue to inspect verified fields.</div>
             </div>
-          ) : loadingDetail || !docDetail ? (
-            <div style={{ textAlign: 'center', padding: '80px 20px', color: 'var(--text-muted)' }}>
-              Loading document inspection data...
+          ) : detailLoading ? (
+            <div style={{ textAlign: 'center', padding: '100px 0', color: 'var(--text-dim)' }}>
+              <RefreshCw size={36} className="animate-spin" style={{ margin: '0 auto 16px auto', color: 'var(--accent-cyan)' }} />
+              <div>Loading verified document payload...</div>
             </div>
           ) : (
             <div>
-              {/* Top Document Header */}
+              {/* Document Header & Control Bar */}
               <div style={{
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'flex-start',
-                flexWrap: 'wrap',
                 gap: '16px',
-                paddingBottom: '20px',
                 borderBottom: '1px solid var(--border-subtle)',
+                paddingBottom: '20px',
                 marginBottom: '20px',
+                flexWrap: 'wrap',
               }}>
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
-                    <h1 style={{ fontSize: '1.4rem', fontWeight: 800 }}>{docDetail.filename}</h1>
-                    <span className={`badge ${docDetail.status === 'completed' ? 'badge-verified' : docDetail.status === 'needs_review' ? 'badge-review' : 'badge-error'}`}>
-                      {docDetail.status}
+                    <h1 style={{ fontSize: '1.45rem', fontWeight: 800, color: '#ffffff' }}>
+                      {docDetail.extracted_data?.document_title || docDetail.filename}
+                    </h1>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                    <span style={{
+                      padding: '2px 8px',
+                      borderRadius: '4px',
+                      background: 'rgba(56, 189, 248, 0.12)',
+                      border: '1px solid rgba(56, 189, 248, 0.3)',
+                      color: 'var(--accent-cyan)',
+                      fontSize: '0.75rem',
+                      fontWeight: 700,
+                      textTransform: 'uppercase',
+                    }}>
+                      {getDocCategory(docDetail)}
                     </span>
-                    {docDetail.verification && (
-                      <span className={`badge ${docDetail.verification.status === 'VERIFIED' ? 'badge-verified' : docDetail.verification.status === 'DISCREPANCY_DETECTED' ? 'badge-error' : 'badge-review'}`}>
-                        {docDetail.verification.status}
+
+                    <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                      File: {docDetail.filename}
+                    </span>
+
+                    <span style={{ fontSize: '0.8rem', color: 'var(--text-dim)' }}>•</span>
+
+                    <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                      Ingested: {new Date(docDetail.created_at).toLocaleDateString()}
+                    </span>
+
+                    <span style={{ fontSize: '0.8rem', color: 'var(--text-dim)' }}>•</span>
+
+                    {docDetail.status === 'completed' && docDetail.verification?.is_verified ? (
+                      <span className="badge badge-verified">
+                        <CheckCircle2 size={12} /> 100% Verified
+                      </span>
+                    ) : (
+                      <span className="badge badge-review">
+                        <AlertTriangle size={12} /> Needs Review
                       </span>
                     )}
                   </div>
-                  <div style={{ fontSize: '0.78rem', color: 'var(--text-dim)', display: 'flex', gap: '16px' }}>
-                    <span>ID: {docDetail.id}</span>
-                    <span>Ingested: {new Date(docDetail.created_at).toLocaleString()}</span>
-                    <span>Type: <strong style={{ textTransform: 'capitalize', color: 'var(--text-main)' }}>{docDetail.document_type}</strong></span>
-                  </div>
                 </div>
 
-                <div style={{ display: 'flex', gap: '10px' }}>
-                  <a
-                    href={api.getCsvExportUrl(docDetail.id)}
-                    className="btn-secondary"
-                    style={{ fontSize: '0.82rem', padding: '8px 14px', textDecoration: 'none' }}
-                    download
-                  >
-                    <Download size={15} /> Export CSV
-                  </a>
+                {/* Quick Actions */}
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                   <button
                     className="btn-secondary"
                     onClick={handleReprocess}
-                    style={{ fontSize: '0.82rem', padding: '8px 14px' }}
-                    title="Re-run extraction and validation pipeline"
+                    disabled={reprocessing}
+                    style={{ fontSize: '0.78rem', padding: '6px 12px' }}
+                    title="Re-run AI extraction pipeline"
                   >
-                    <RotateCcw size={15} /> Reprocess
+                    <RefreshCw size={14} className={reprocessing ? 'animate-spin' : ''} />
+                    {reprocessing ? 'Reprocessing...' : 'Reprocess AI'}
                   </button>
+
+                  <a
+                    href={api.getCsvExportUrl(docDetail.id)}
+                    className="btn-secondary"
+                    style={{ fontSize: '0.78rem', padding: '6px 12px', textDecoration: 'none' }}
+                    download
+                  >
+                    <Download size={14} /> Export CSV
+                  </a>
                 </div>
               </div>
 
-              {/* Inspector Navigation Tabs */}
+              {/* Navigation Tabs */}
               <div style={{
                 display: 'flex',
                 gap: '8px',
@@ -610,7 +874,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({
                     gap: '6px',
                   }}
                 >
-                  <FileText size={16} /> Structured Extraction
+                  <FileText size={16} /> Structured Intelligence
                 </button>
 
                 <button
@@ -629,7 +893,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({
                     gap: '6px',
                   }}
                 >
-                  <ShieldCheck size={16} /> Verification & Exceptions
+                  <ShieldCheck size={16} /> Verification & Integrity
                   {docDetail.verification?.issue_count ? (
                     <span style={{
                       background: 'rgba(239, 68, 68, 0.25)',
@@ -659,7 +923,18 @@ export const Workspace: React.FC<WorkspaceProps> = ({
                     gap: '6px',
                   }}
                 >
-                  <MessageSquare size={16} /> AI Grounded Q&A
+                  <MessageSquare size={16} /> Grounded AI Q&A
+                  {qaHistory.length > 0 && (
+                    <span style={{
+                      background: 'rgba(168, 85, 247, 0.25)',
+                      color: '#c084fc',
+                      borderRadius: '999px',
+                      padding: '1px 6px',
+                      fontSize: '0.72rem',
+                    }}>
+                      {qaHistory.length}
+                    </span>
+                  )}
                 </button>
 
                 <button
@@ -678,7 +953,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({
                     gap: '6px',
                   }}
                 >
-                  <Clock size={16} /> Audit Trail ({docDetail.logs.length})
+                  <Clock size={16} /> System Audit Trail ({docDetail.logs.length})
                 </button>
 
                 <button
@@ -700,11 +975,11 @@ export const Workspace: React.FC<WorkspaceProps> = ({
                     gap: '6px',
                   }}
                 >
-                  <Info size={16} /> Extracted Text
+                  <Info size={16} /> Raw Extracted Text
                 </button>
               </div>
 
-              {/* TAB 1: STRUCTURED EXTRACTION */}
+              {/* TAB 1: STRUCTURED INTELLIGENCE */}
               {activeTab === 'extraction' && (
                 <div>
                   {!docDetail.extracted_data ? (
@@ -713,40 +988,113 @@ export const Workspace: React.FC<WorkspaceProps> = ({
                     </div>
                   ) : (
                     <div>
-                      {/* Executive AI Document Summary Banner */}
+                      {/* Executive AI Document Summary Callout */}
                       {docDetail.extracted_data.executive_summary && (
                         <div style={{
-                          padding: '18px 22px',
+                          padding: '20px 24px',
                           borderRadius: 'var(--radius-md)',
-                          background: 'linear-gradient(135deg, rgba(14, 165, 233, 0.12), rgba(168, 85, 247, 0.08))',
+                          background: 'linear-gradient(135deg, rgba(14, 165, 233, 0.12) 0%, rgba(168, 85, 247, 0.08) 100%)',
                           border: '1px solid rgba(14, 165, 233, 0.3)',
-                          marginBottom: '24px',
+                          marginBottom: '26px',
+                          position: 'relative',
                         }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-                            <Sparkles size={16} color="#38bdf8" />
-                            <span style={{ fontSize: '0.8rem', fontWeight: 700, textTransform: 'uppercase', color: '#38bdf8', letterSpacing: '0.05em' }}>
-                              Executive AI Document Summary
-                            </span>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <Sparkles size={16} color="#38bdf8" />
+                              <span style={{ fontSize: '0.8rem', fontWeight: 700, textTransform: 'uppercase', color: '#38bdf8', letterSpacing: '0.05em' }}>
+                                Executive AI Document Synthesis
+                              </span>
+                            </div>
+                            <button
+                              onClick={() => copyToClipboard(docDetail.extracted_data?.executive_summary, 'summary')}
+                              style={{
+                                background: copiedKey === 'summary' ? 'rgba(16, 185, 129, 0.2)' : 'rgba(255, 255, 255, 0.06)',
+                                border: '1px solid var(--border-subtle)',
+                                color: copiedKey === 'summary' ? '#34d399' : 'var(--text-muted)',
+                                padding: '3px 8px',
+                                borderRadius: '4px',
+                                fontSize: '0.72rem',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                              }}
+                            >
+                              {copiedKey === 'summary' ? <Check size={12} /> : <Copy size={12} />}
+                              {copiedKey === 'summary' ? 'Copied' : 'Copy'}
+                            </button>
                           </div>
-                          <div style={{ fontSize: '0.96rem', lineHeight: '1.65', color: '#f1f5f9' }}>
+                          <div style={{ fontSize: '0.96rem', lineHeight: '1.68', color: '#f1f5f9' }}>
                             {docDetail.extracted_data.executive_summary}
                           </div>
                         </div>
                       )}
 
-                      {/* Primary Entities & Dates Tags if present */}
-                      {(Array.isArray(docDetail.extracted_data.primary_entities) && docDetail.extracted_data.primary_entities.length > 0) ||
-                       (Array.isArray(docDetail.extracted_data.key_dates) && docDetail.extracted_data.key_dates.length > 0) ||
-                       (Array.isArray(docDetail.extracted_data.financial_metrics) && docDetail.extracted_data.financial_metrics.length > 0) ? (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginBottom: '24px' }}>
+                      {/* Verified Document Key-Value Metadata Grid */}
+                      {docDetail.extracted_data.key_fields &&
+                        typeof docDetail.extracted_data.key_fields === 'object' &&
+                        Object.keys(docDetail.extracted_data.key_fields).length > 0 && (
+                          <div style={{ marginBottom: '28px' }}>
+                            <h3 style={{ fontSize: '1.02rem', marginBottom: '14px', color: '#ffffff', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <Zap size={16} color="var(--accent-cyan)" /> Verified Document Attributes
+                            </h3>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '12px' }}>
+                              {Object.entries(docDetail.extracted_data.key_fields).map(([k, v]) => (
+                                <div
+                                  key={k}
+                                  style={{
+                                    padding: '14px 18px',
+                                    borderRadius: 'var(--radius-sm)',
+                                    background: 'rgba(255, 255, 255, 0.02)',
+                                    border: '1px solid var(--border-subtle)',
+                                    display: 'flex',
+                                    justifyContent: 'space-between',
+                                    alignItems: 'center',
+                                    gap: '12px',
+                                  }}
+                                >
+                                  <div style={{ flex: 1, minWidth: 0 }}>
+                                    <div style={{ fontSize: '0.72rem', color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, marginBottom: '3px' }}>
+                                      {k}
+                                    </div>
+                                    <div style={{ fontSize: '0.98rem', fontWeight: 600, color: '#ffffff', wordBreak: 'break-word' }}>
+                                      {String(v)}
+                                    </div>
+                                  </div>
+                                  <button
+                                    onClick={() => copyToClipboard(String(v), k)}
+                                    title={`Copy ${k}`}
+                                    style={{
+                                      background: copiedKey === k ? 'rgba(16, 185, 129, 0.2)' : 'transparent',
+                                      border: 'none',
+                                      color: copiedKey === k ? '#34d399' : 'var(--text-dim)',
+                                      cursor: 'pointer',
+                                      padding: '4px',
+                                      borderRadius: '4px',
+                                    }}
+                                  >
+                                    {copiedKey === k ? <Check size={14} /> : <Copy size={14} />}
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                      {/* Entities, Dates, and Financials Ribbon */}
+                      {((Array.isArray(docDetail.extracted_data.primary_entities) && docDetail.extracted_data.primary_entities.length > 0) ||
+                        (Array.isArray(docDetail.extracted_data.key_dates) && docDetail.extracted_data.key_dates.length > 0) ||
+                        (Array.isArray(docDetail.extracted_data.financial_metrics) && docDetail.extracted_data.financial_metrics.length > 0)) && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: '28px' }}>
+                          {/* Entities */}
                           {Array.isArray(docDetail.extracted_data.primary_entities) && docDetail.extracted_data.primary_entities.length > 0 && (
                             <div>
-                              <div style={{ fontSize: '0.74rem', color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, marginBottom: '6px' }}>
-                                Primary Identified Entities & Parties:
+                              <div style={{ fontSize: '0.74rem', color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, marginBottom: '8px' }}>
+                                Identified Entities & Signatories:
                               </div>
                               <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                                 {docDetail.extracted_data.primary_entities.map((ent: string, idx: number) => (
-                                  <span key={idx} style={{ padding: '4px 12px', borderRadius: '6px', background: 'rgba(168, 85, 247, 0.12)', border: '1px solid rgba(168, 85, 247, 0.3)', color: '#c084fc', fontSize: '0.84rem', fontWeight: 500 }}>
+                                  <span key={idx} style={{ padding: '5px 14px', borderRadius: '6px', background: 'rgba(168, 85, 247, 0.12)', border: '1px solid rgba(168, 85, 247, 0.3)', color: '#c084fc', fontSize: '0.84rem', fontWeight: 600 }}>
                                     {ent}
                                   </span>
                                 ))}
@@ -754,14 +1102,16 @@ export const Workspace: React.FC<WorkspaceProps> = ({
                             </div>
                           )}
 
+                          {/* Key Dates */}
                           {Array.isArray(docDetail.extracted_data.key_dates) && docDetail.extracted_data.key_dates.length > 0 && (
                             <div>
-                              <div style={{ fontSize: '0.74rem', color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, marginBottom: '6px' }}>
-                                Operational & Scheduled Dates:
+                              <div style={{ fontSize: '0.74rem', color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, marginBottom: '8px' }}>
+                                Scheduled & Operational Dates:
                               </div>
                               <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                                 {docDetail.extracted_data.key_dates.map((dt: string, idx: number) => (
-                                  <span key={idx} style={{ padding: '4px 12px', borderRadius: '6px', background: 'rgba(245, 158, 11, 0.12)', border: '1px solid rgba(245, 158, 11, 0.3)', color: '#fbbf24', fontSize: '0.84rem', fontWeight: 500 }}>
+                                  <span key={idx} style={{ padding: '5px 14px', borderRadius: '6px', background: 'rgba(245, 158, 11, 0.12)', border: '1px solid rgba(245, 158, 11, 0.3)', color: '#fbbf24', fontSize: '0.84rem', fontWeight: 600 }}>
+                                    <Calendar size={13} style={{ display: 'inline', marginRight: '6px' }} />
                                     {dt}
                                   </span>
                                 ))}
@@ -769,14 +1119,16 @@ export const Workspace: React.FC<WorkspaceProps> = ({
                             </div>
                           )}
 
+                          {/* Financial Metrics */}
                           {Array.isArray(docDetail.extracted_data.financial_metrics) && docDetail.extracted_data.financial_metrics.length > 0 && (
                             <div>
-                              <div style={{ fontSize: '0.74rem', color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, marginBottom: '6px' }}>
-                                Financial Metrics & Amounts:
+                              <div style={{ fontSize: '0.74rem', color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, marginBottom: '8px' }}>
+                                Financial Metrics & Consideration:
                               </div>
                               <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                                 {docDetail.extracted_data.financial_metrics.map((fm: string, idx: number) => (
-                                  <span key={idx} style={{ padding: '4px 12px', borderRadius: '6px', background: 'rgba(16, 185, 129, 0.12)', border: '1px solid rgba(16, 185, 129, 0.3)', color: '#34d399', fontSize: '0.84rem', fontWeight: 600 }}>
+                                  <span key={idx} style={{ padding: '5px 14px', borderRadius: '6px', background: 'rgba(16, 185, 129, 0.12)', border: '1px solid rgba(16, 185, 129, 0.3)', color: '#34d399', fontSize: '0.84rem', fontWeight: 700 }}>
+                                    <DollarSign size={13} style={{ display: 'inline', marginRight: '4px' }} />
                                     {fm}
                                   </span>
                                 ))}
@@ -784,32 +1136,22 @@ export const Workspace: React.FC<WorkspaceProps> = ({
                             </div>
                           )}
                         </div>
-                      ) : null}
-
-                      {/* General Key Fields Map if present */}
-                      {docDetail.extracted_data.key_fields && typeof docDetail.extracted_data.key_fields === 'object' && Object.keys(docDetail.extracted_data.key_fields).length > 0 && (
-                        <div style={{ marginBottom: '28px' }}>
-                          <h3 style={{ fontSize: '1.02rem', marginBottom: '14px', color: '#ffffff' }}>Verified Document Fields</h3>
-                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '12px' }}>
-                            {Object.entries(docDetail.extracted_data.key_fields).map(([k, v]) => (
-                              <div key={k} style={{ padding: '12px 16px', borderRadius: 'var(--radius-sm)', background: 'rgba(255, 255, 255, 0.02)', border: '1px solid var(--border-subtle)' }}>
-                                <div style={{ fontSize: '0.72rem', color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, marginBottom: '3px' }}>{k}</div>
-                                <div style={{ fontSize: '0.98rem', fontWeight: 600, color: '#ffffff' }}>{String(v)}</div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
                       )}
 
-                      {/* Structured Grid Attributes */}
+                      {/* General Grid Attributes (Non-nested attributes) */}
                       <div style={{
                         display: 'grid',
                         gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
-                        gap: '16px',
+                        gap: '14px',
                         marginBottom: '28px',
                       }}>
                         {Object.entries(docDetail.extracted_data).map(([key, val]) => {
-                          if (['line_items', 'executive_summary', 'key_points', 'primary_entities', 'key_dates', 'financial_metrics', 'key_fields'].includes(key) || Array.isArray(val) || typeof val === 'object') return null;
+                          if (
+                            ['line_items', 'executive_summary', 'key_points', 'primary_entities', 'key_dates', 'financial_metrics', 'key_fields', 'document_title', 'document_category'].includes(key) ||
+                            Array.isArray(val) ||
+                            typeof val === 'object'
+                          )
+                            return null;
                           return (
                             <div
                               key={key}
@@ -831,25 +1173,25 @@ export const Workspace: React.FC<WorkspaceProps> = ({
                                 {key.replace(/_/g, ' ')}
                               </div>
                               <div style={{
-                                fontSize: '1.05rem',
+                                fontSize: '1.02rem',
                                 fontWeight: 600,
                                 color: val === null || val === '' ? 'var(--text-dim)' : '#ffffff',
                               }}>
-                                {val === null || val === '' ? '— Not Found' : String(val)}
+                                {val === null || val === '' ? '— Not Specified' : String(val)}
                               </div>
                             </div>
                           );
                         })}
                       </div>
 
-                      {/* Key Points / Clauses Bullet List */}
+                      {/* Key Points / Highlights Bullet List */}
                       {Array.isArray(docDetail.extracted_data.key_points) && docDetail.extracted_data.key_points.length > 0 && (
-                        <div style={{ marginBottom: '24px' }}>
-                          <h3 style={{ fontSize: '1.02rem', marginBottom: '12px', color: '#ffffff' }}>Key Information & Provisions</h3>
+                        <div style={{ marginBottom: '28px' }}>
+                          <h3 style={{ fontSize: '1.02rem', marginBottom: '12px', color: '#ffffff' }}>Key Information & Takeaways</h3>
                           <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '8px' }}>
                             {docDetail.extracted_data.key_points.map((pt: string, idx: number) => (
-                              <li key={idx} style={{ padding: '10px 14px', borderRadius: 'var(--radius-sm)', background: 'rgba(255, 255, 255, 0.02)', border: '1px solid var(--border-subtle)', color: 'var(--text-main)', fontSize: '0.88rem', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                <CheckCircle2 size={15} color="#38bdf8" style={{ flexShrink: 0 }} />
+                              <li key={idx} style={{ padding: '12px 16px', borderRadius: 'var(--radius-sm)', background: 'rgba(255, 255, 255, 0.02)', border: '1px solid var(--border-subtle)', color: 'var(--text-main)', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                <CheckCircle2 size={16} color="var(--accent-cyan)" style={{ flexShrink: 0 }} />
                                 {pt}
                               </li>
                             ))}
@@ -857,9 +1199,9 @@ export const Workspace: React.FC<WorkspaceProps> = ({
                         </div>
                       )}
 
-                      {/* Line Items Table if present (Invoices) */}
+                      {/* Line Items Table (Invoices / Orders) */}
                       {Array.isArray(docDetail.extracted_data.line_items) && docDetail.extracted_data.line_items.length > 0 && (
-                        <div>
+                        <div style={{ marginBottom: '28px' }}>
                           <h3 style={{ fontSize: '1.05rem', marginBottom: '14px', color: '#ffffff' }}>Itemized Line Items</h3>
                           <div style={{ overflowX: 'auto', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)' }}>
                             <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.88rem' }}>
@@ -886,20 +1228,20 @@ export const Workspace: React.FC<WorkspaceProps> = ({
                         </div>
                       )}
 
-                      {/* Skills tags if present (Resume) */}
+                      {/* Skills Tags (Resumes) */}
                       {Array.isArray(docDetail.extracted_data.skills) && docDetail.extracted_data.skills.length > 0 && (
                         <div style={{ marginTop: '20px' }}>
-                          <h3 style={{ fontSize: '1.05rem', marginBottom: '12px', color: '#ffffff' }}>Cataloged Skills</h3>
+                          <h3 style={{ fontSize: '1.05rem', marginBottom: '12px', color: '#ffffff' }}>Cataloged Skills Taxonomy</h3>
                           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                             {docDetail.extracted_data.skills.map((s: string, idx: number) => (
                               <span
                                 key={idx}
                                 style={{
-                                  padding: '4px 10px',
+                                  padding: '5px 12px',
                                   borderRadius: '6px',
                                   background: 'rgba(56, 189, 248, 0.1)',
                                   border: '1px solid rgba(56, 189, 248, 0.25)',
-                                  color: 'var(--accent-cyan)',
+                                  color: '#38bdf8',
                                   fontSize: '0.82rem',
                                   fontWeight: 500,
                                 }}
@@ -910,344 +1252,178 @@ export const Workspace: React.FC<WorkspaceProps> = ({
                           </div>
                         </div>
                       )}
-
-                      {/* Key terms list if present (Contract) */}
-                      {Array.isArray(docDetail.extracted_data.key_terms) && docDetail.extracted_data.key_terms.length > 0 && (
-                        <div style={{ marginTop: '20px' }}>
-                          <h3 style={{ fontSize: '1.05rem', marginBottom: '12px', color: '#ffffff' }}>Extracted Key Clauses</h3>
-                          <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                            {docDetail.extracted_data.key_terms.map((term: string, idx: number) => (
-                              <li
-                                key={idx}
-                                style={{
-                                  padding: '10px 14px',
-                                  borderRadius: 'var(--radius-sm)',
-                                  background: 'rgba(255, 255, 255, 0.02)',
-                                  border: '1px solid var(--border-subtle)',
-                                  color: 'var(--text-main)',
-                                  fontSize: '0.86rem',
-                                }}
-                              >
-                                {term}
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
                     </div>
                   )}
                 </div>
               )}
 
-              {/* TAB 2: VERIFICATION & EXCEPTION DETECTION */}
+              {/* TAB 2: VERIFICATION & INTEGRITY */}
               {activeTab === 'verification' && (
                 <div>
-                  {!docDetail.verification ? (
-                    <div style={{ color: 'var(--text-muted)', padding: '40px 0', textAlign: 'center' }}>
-                      No verification report generated yet.
-                    </div>
-                  ) : (
-                    <div>
-                      {/* Status Banner */}
-                      <div
-                        style={{
-                          padding: '18px 24px',
-                          borderRadius: 'var(--radius-md)',
-                          background: docDetail.verification.status === 'VERIFIED' ? 'rgba(16, 185, 129, 0.1)' : docDetail.verification.status === 'DISCREPANCY_DETECTED' ? 'rgba(239, 68, 68, 0.1)' : 'rgba(245, 158, 11, 0.1)',
-                          border: `1px solid ${docDetail.verification.status === 'VERIFIED' ? 'rgba(16, 185, 129, 0.3)' : docDetail.verification.status === 'DISCREPANCY_DETECTED' ? 'rgba(239, 68, 68, 0.3)' : 'rgba(245, 158, 11, 0.3)'}`,
-                          marginBottom: '24px',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '14px',
-                        }}
-                      >
-                        {docDetail.verification.status === 'VERIFIED' ? (
-                          <CheckCircle2 size={24} color="#34d399" />
-                        ) : docDetail.verification.status === 'DISCREPANCY_DETECTED' ? (
-                          <AlertTriangle size={24} color="#f87171" />
-                        ) : (
-                          <AlertTriangle size={24} color="#fbbf24" />
-                        )}
-                        <div>
-                          <div style={{ fontSize: '1.1rem', fontWeight: 700, color: '#ffffff' }}>
-                            Verification Status: {docDetail.verification.status}
-                          </div>
-                          <div style={{ fontSize: '0.84rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-                            {docDetail.verification.is_verified
-                              ? 'All deterministic business logic checks and arithmetic validations passed.'
-                              : `${docDetail.verification.issue_count} exception(s) flagged for human compliance review.`}
-                          </div>
+                  <div style={{
+                    padding: '20px 24px',
+                    borderRadius: 'var(--radius-md)',
+                    background: docDetail.verification?.is_verified ? 'rgba(16, 185, 129, 0.08)' : 'rgba(245, 158, 11, 0.08)',
+                    border: `1px solid ${docDetail.verification?.is_verified ? 'rgba(16, 185, 129, 0.3)' : 'rgba(245, 158, 11, 0.3)'}`,
+                    marginBottom: '24px',
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      {docDetail.verification?.is_verified ? (
+                        <CheckCircle2 size={24} color="#34d399" />
+                      ) : (
+                        <AlertTriangle size={24} color="#fbbf24" />
+                      )}
+                      <div>
+                        <div style={{ fontWeight: 800, fontSize: '1.1rem', color: docDetail.verification?.is_verified ? '#34d399' : '#fbbf24' }}>
+                          {docDetail.verification?.is_verified ? 'Deterministic Verification Passed' : 'Manual Review Recommended'}
+                        </div>
+                        <div style={{ fontSize: '0.84rem', color: 'var(--text-muted)' }}>
+                          Status: {docDetail.verification?.status} • {docDetail.verification?.checks_passed?.length || 0} Rule(s) Verified
                         </div>
                       </div>
+                    </div>
+                  </div>
 
-                      {/* Issues / Exceptions List */}
-                      {docDetail.verification.issues.length > 0 && (
-                        <div style={{ marginBottom: '28px' }}>
-                          <h3 style={{ fontSize: '1.05rem', marginBottom: '14px', color: '#ffffff' }}>Flagged Exceptions & Discrepancies</h3>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                            {docDetail.verification.issues.map((iss, i) => (
-                              <div
-                                key={i}
-                                style={{
-                                  padding: '14px 18px',
-                                  borderRadius: 'var(--radius-sm)',
-                                  background: iss.severity === 'HIGH' ? 'rgba(239, 68, 68, 0.08)' : 'rgba(245, 158, 11, 0.08)',
-                                  border: `1px solid ${iss.severity === 'HIGH' ? 'rgba(239, 68, 68, 0.25)' : 'rgba(245, 158, 11, 0.25)'}`,
-                                  display: 'flex',
-                                  alignItems: 'flex-start',
-                                  gap: '12px',
-                                }}
-                              >
-                                <AlertTriangle size={18} color={iss.severity === 'HIGH' ? '#f87171' : '#fbbf24'} style={{ marginTop: '2px', flexShrink: 0 }} />
-                                <div>
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                    <span style={{ fontSize: '0.8rem', fontWeight: 700, textTransform: 'uppercase', color: iss.severity === 'HIGH' ? '#f87171' : '#fbbf24' }}>
-                                      {iss.type}
-                                    </span>
-                                    {iss.field && (
-                                      <span style={{ fontSize: '0.74rem', color: 'var(--text-dim)' }}>
-                                        Field: {iss.field}
-                                      </span>
-                                    )}
-                                  </div>
-                                  <div style={{ fontSize: '0.88rem', color: '#ffffff', marginTop: '4px' }}>
-                                    {iss.message}
-                                  </div>
-                                </div>
-                              </div>
-                            ))}
+                  {/* Passed Checks */}
+                  <div style={{ marginBottom: '24px' }}>
+                    <h3 style={{ fontSize: '1.02rem', marginBottom: '12px', color: '#ffffff' }}>Verified Business Logic Checks</h3>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      {docDetail.verification?.checks_passed && docDetail.verification.checks_passed.length > 0 ? (
+                        docDetail.verification.checks_passed.map((chk: string, idx: number) => (
+                          <div key={idx} style={{ padding: '10px 14px', borderRadius: '6px', background: 'rgba(16, 185, 129, 0.06)', border: '1px solid rgba(16, 185, 129, 0.2)', color: '#34d399', fontSize: '0.86rem', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                            <CheckCircle2 size={15} /> {chk}
                           </div>
-                        </div>
+                        ))
+                      ) : (
+                        <div style={{ color: 'var(--text-dim)', fontSize: '0.85rem' }}>No specific automated checks defined for this schema.</div>
                       )}
+                    </div>
+                  </div>
 
-                      {/* Passed Checks List */}
-                      <div>
-                        <h3 style={{ fontSize: '1.05rem', marginBottom: '14px', color: '#ffffff' }}>Verified Validation Rules</h3>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                          {docDetail.verification.checks_passed.map((chk, i) => (
-                            <div
-                              key={i}
-                              style={{
-                                padding: '10px 14px',
-                                borderRadius: 'var(--radius-sm)',
-                                background: 'rgba(16, 185, 129, 0.06)',
-                                border: '1px solid rgba(16, 185, 129, 0.2)',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '10px',
-                                fontSize: '0.86rem',
-                                color: '#ffffff',
-                              }}
-                            >
-                              <CheckCircle2 size={16} color="#34d399" />
-                              {chk}
+                  {/* Exceptions / Issues */}
+                  {docDetail.verification?.issues && docDetail.verification.issues.length > 0 && (
+                    <div>
+                      <h3 style={{ fontSize: '1.02rem', marginBottom: '12px', color: '#f87171' }}>Identified Exceptions ({docDetail.verification.issues.length})</h3>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                        {docDetail.verification.issues.map((iss: any, idx: number) => (
+                          <div key={idx} style={{ padding: '12px 16px', borderRadius: '6px', background: 'rgba(239, 68, 68, 0.08)', border: '1px solid rgba(239, 68, 68, 0.25)', color: '#f87171', fontSize: '0.88rem' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                              <strong>{iss.type}</strong>
+                              <span style={{ fontSize: '0.72rem', padding: '2px 6px', borderRadius: '4px', background: 'rgba(239, 68, 68, 0.2)' }}>
+                                {iss.severity}
+                              </span>
                             </div>
-                          ))}
-                        </div>
+                            <div style={{ color: '#e2e8f0' }}>{iss.message}</div>
+                          </div>
+                        ))}
                       </div>
                     </div>
                   )}
                 </div>
               )}
 
-              {/* TAB 3: GROUNDED AI Q&A ASSISTANT */}
+              {/* TAB 3: GROUNDED AI Q&A */}
               {activeTab === 'qa' && (
-                <div>
-                  <div style={{
-                    padding: '16px',
-                    borderRadius: 'var(--radius-md)',
-                    background: 'rgba(168, 85, 247, 0.08)',
-                    border: '1px solid rgba(168, 85, 247, 0.2)',
-                    marginBottom: '20px',
-                    fontSize: '0.85rem',
-                    color: 'var(--text-muted)',
-                  }}>
-                    <strong style={{ color: '#ffffff' }}>Grounded Document Assistant:</strong> Answers are retrieved strictly from the document content with verbatim excerpt citations. Answers will state "Not found" rather than inventing facts.
-                  </div>
-
-                  {/* Sample Prompt Chips */}
-                  <div style={{ marginBottom: '20px' }}>
-                    <div style={{ fontSize: '0.78rem', color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 600, marginBottom: '8px' }}>
-                      Suggested Questions for this Document:
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                  {/* Suggested Questions */}
+                  <div>
+                    <div style={{ fontSize: '0.76rem', color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, marginBottom: '8px' }}>
+                      Suggested Natural Language Questions for this Document:
                     </div>
                     <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                      {(() => {
-                        const docType = docDetail?.document_type?.toUpperCase();
-                        const cat = (docDetail?.extracted_data?.document_category || '').toLowerCase();
-                        const title = (docDetail?.extracted_data?.document_title || docDetail?.filename || '').toLowerCase();
-
-                        if (cat.includes('railway') || cat.includes('train') || title.includes('electronic reservation slip') || title.includes('ers') || title.includes('4953281463')) {
-                          return [
-                            'Who is travelling in the train?',
-                            'What is the PNR?',
-                            'What is the train number and name?',
-                            'What is the route?',
-                            'What is the total fare?',
-                            'What are the departure and arrival times?',
-                            'What is the waitlist cancellation rule?',
-                          ];
-                        }
-                        if (cat.includes('flight') || cat.includes('airline') || title.includes('boarding pass') || title.includes('flight')) {
-                          return [
-                            'Who is the passenger?',
-                            'What is the flight number?',
-                            'What is the PNR or booking reference?',
-                            'What are the departure and arrival times?',
-                            'What is the baggage allowance?',
-                            'What is the total fare paid?',
-                          ];
-                        }
-                        if (cat.includes('medical') || cat.includes('clinical') || cat.includes('health') || title.includes('medical') || title.includes('patient')) {
-                          return [
-                            'Who is the patient?',
-                            'What is the clinical assessment or diagnosis?',
-                            'What medication was prescribed?',
-                            'Who is the attending physician?',
-                            'What are the follow-up instructions?',
-                          ];
-                        }
-                        if (cat.includes('bank') || cat.includes('financial') || title.includes('bank') || title.includes('statement')) {
-                          return [
-                            'Who is the account holder?',
-                            'What is the account number?',
-                            'What is the closing balance?',
-                            'What is the statement period?',
-                            'What are the total deposits?',
-                          ];
-                        }
-                        if (docType === 'RESUME') {
-                          return [
-                            'Who is the candidate?',
-                            'What is his education and CGPA?',
-                            'What projects has he worked on?',
-                            'What technical skills does he have?',
-                            'What is his professional experience?',
-                            'What is his contact info and phone number?',
-                          ];
-                        }
-                        if (cat.includes('booking') || cat.includes('hotel') || title.includes('booking')) {
-                          return [
-                            'Who is the guest?',
-                            'What is the PIN Code?',
-                            'What is the total price?',
-                            'What are check-in and check-out dates?',
-                            'Is parking free?',
-                            'What is the cancellation policy?',
-                          ];
-                        }
-                        if (docType === 'INVOICE') {
-                          return [
-                            'What is the total amount due?',
-                            'Who is the vendor and customer?',
-                            'What is the due date?',
-                            'What tax or GST is applied?',
-                            'What are the line items?',
-                          ];
-                        }
-                        if (docType === 'CONTRACT') {
-                          return [
-                            'Who are the contracting parties?',
-                            'What is the contract value?',
-                            'What is the governing law?',
-                            'What are the key terms?',
-                          ];
-                        }
-                        return [
-                          'Summarize this document',
-                          'Who are the primary entities?',
-                          'What are the primary findings?',
-                          'What are the key dates?',
-                          'What are the financial metrics?',
-                          'What are the key takeaways?',
-                        ];
-                      })().map((chip) => (
+                      {suggestedQuestions.map((sq, idx) => (
                         <button
-                          key={chip}
-                          onClick={() => handleAskQA(chip)}
+                          key={idx}
+                          onClick={() => handleAskQA(sq)}
+                          disabled={qaLoading}
                           style={{
-                            background: 'rgba(255, 255, 255, 0.04)',
-                            border: '1px solid var(--border-subtle)',
-                            color: 'var(--text-muted)',
                             padding: '6px 12px',
                             borderRadius: '999px',
+                            background: 'rgba(168, 85, 247, 0.1)',
+                            border: '1px solid rgba(168, 85, 247, 0.25)',
+                            color: '#c084fc',
                             fontSize: '0.78rem',
+                            fontWeight: 500,
                             cursor: 'pointer',
                             transition: 'all 0.15s ease',
                           }}
                         >
-                          {chip}
+                          {sq}
                         </button>
                       ))}
                     </div>
                   </div>
 
-                  {/* QA Conversation Stream */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: '20px', maxHeight: '420px', overflowY: 'auto' }}>
+                  {/* Q&A History Conversation Stream */}
+                  <div style={{
+                    minHeight: '280px',
+                    maxHeight: '480px',
+                    overflowY: 'auto',
+                    padding: '16px',
+                    borderRadius: 'var(--radius-md)',
+                    background: 'rgba(0, 0, 0, 0.25)',
+                    border: '1px solid var(--border-subtle)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '16px',
+                  }}>
                     {qaHistory.length === 0 ? (
-                      <div style={{ textAlign: 'center', padding: '30px 0', color: 'var(--text-dim)', fontSize: '0.88rem' }}>
-                        No questions asked yet. Type a question below or pick a suggestion above.
+                      <div style={{ textAlign: 'center', padding: '50px 0', color: 'var(--text-dim)' }}>
+                        <MessageSquare size={36} style={{ margin: '0 auto 12px auto', opacity: 0.3 }} />
+                        <div style={{ fontSize: '0.9rem' }}>Ask any question grounded in this document.</div>
+                        <div style={{ fontSize: '0.78rem', marginTop: '4px' }}>Answers cite exact verbatim source excerpts with zero hallucinations.</div>
                       </div>
                     ) : (
                       qaHistory.map((item, idx) => (
                         <div key={idx} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                          {/* Question */}
-                          <div style={{
-                            alignSelf: 'flex-end',
-                            background: 'rgba(14, 165, 233, 0.2)',
-                            border: '1px solid rgba(14, 165, 233, 0.4)',
-                            padding: '10px 16px',
-                            borderRadius: '12px 12px 2px 12px',
-                            color: '#ffffff',
-                            fontSize: '0.9rem',
-                            maxWidth: '85%',
-                          }}>
-                            {item.q}
+                          {/* User Query */}
+                          <div style={{ alignSelf: 'flex-end', maxWidth: '85%' }}>
+                            <div style={{
+                              padding: '10px 16px',
+                              borderRadius: '12px 12px 2px 12px',
+                              background: 'linear-gradient(135deg, #0ea5e9 0%, #2563eb 100%)',
+                              color: '#ffffff',
+                              fontSize: '0.92rem',
+                              fontWeight: 500,
+                            }}>
+                              {item.q}
+                            </div>
                           </div>
 
-                          {/* Answer */}
-                          <div style={{
-                            alignSelf: 'flex-start',
-                            background: 'rgba(255, 255, 255, 0.04)',
-                            border: '1px solid var(--border-subtle)',
-                            padding: '14px 18px',
-                            borderRadius: '12px 12px 12px 2px',
-                            color: '#ffffff',
-                            fontSize: '0.9rem',
-                            maxWidth: '92%',
-                          }}>
-                            <FormattedAnswer text={item.a.answer} />
+                          {/* AI Answer */}
+                          <div style={{ alignSelf: 'flex-start', maxWidth: '92%' }}>
+                            <div style={{
+                              padding: '14px 18px',
+                              borderRadius: '12px 12px 12px 2px',
+                              background: 'rgba(255, 255, 255, 0.04)',
+                              border: '1px solid var(--border-subtle)',
+                            }}>
+                              <FormattedAnswer text={item.a.answer} />
 
-                            {/* Citations */}
-                            {item.a.citations && item.a.citations.length > 0 && (
-                              <div style={{ marginTop: '10px', paddingTop: '10px', borderTop: '1px solid var(--border-subtle)' }}>
-                                <div style={{ fontSize: '0.72rem', color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, marginBottom: '6px' }}>
-                                  Verified Source Excerpt:
-                                </div>
-                                {item.a.citations.map((c, cIdx) => (
-                                  <div
-                                    key={cIdx}
-                                    style={{
-                                      padding: '8px 12px',
-                                      borderRadius: 'var(--radius-sm)',
-                                      background: 'rgba(0, 0, 0, 0.3)',
-                                      border: '1px solid rgba(56, 189, 248, 0.2)',
-                                      fontFamily: 'var(--font-mono)',
-                                      fontSize: '0.78rem',
-                                      color: '#93c5fd',
-                                    }}
-                                  >
-                                    <span style={{ color: 'var(--accent-cyan)', fontWeight: 600 }}>[{c.page_or_section || 'Document'}]:</span> "{c.excerpt}"
+                              {/* Verbatim Citations */}
+                              {item.a.citations && item.a.citations.length > 0 && (
+                                <div style={{ marginTop: '12px', paddingTop: '10px', borderTop: '1px solid var(--border-subtle)' }}>
+                                  <div style={{ fontSize: '0.72rem', color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700, marginBottom: '6px' }}>
+                                    Verbatim Document Citations:
                                   </div>
-                                ))}
-                              </div>
-                            )}
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                    {item.a.citations.map((c, cIdx) => (
+                                      <div key={cIdx} style={{ fontSize: '0.78rem', color: 'var(--text-muted)', background: 'rgba(0, 0, 0, 0.25)', padding: '4px 8px', borderRadius: '4px', borderLeft: '2px solid var(--accent-cyan)' }}>
+                                        <span style={{ color: 'var(--accent-cyan)', fontWeight: 600 }}>[{c.page_or_section || 'Excerpt'}]:</span> "{c.excerpt}"
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
                           </div>
                         </div>
                       ))
                     )}
+                    <div ref={qaBottomRef} />
                   </div>
 
-                  {/* Ask Question Form */}
+                  {/* Ask Question Input */}
                   <form
                     onSubmit={(e) => {
                       e.preventDefault();
@@ -1257,17 +1433,18 @@ export const Workspace: React.FC<WorkspaceProps> = ({
                   >
                     <input
                       type="text"
-                      placeholder="Ask any question about this document..."
+                      placeholder="Ask any question about this document (e.g. What is the validation ID?)..."
                       value={qaQuestion}
                       onChange={(e) => setQaQuestion(e.target.value)}
+                      disabled={qaLoading}
                       style={{
                         flex: 1,
+                        padding: '12px 18px',
+                        borderRadius: 'var(--radius-md)',
                         background: 'rgba(255, 255, 255, 0.05)',
                         border: '1px solid var(--border-medium)',
-                        borderRadius: 'var(--radius-md)',
-                        padding: '12px 16px',
                         color: '#ffffff',
-                        fontSize: '0.9rem',
+                        fontSize: '0.92rem',
                         outline: 'none',
                       }}
                     />
@@ -1277,61 +1454,37 @@ export const Workspace: React.FC<WorkspaceProps> = ({
                       disabled={qaLoading || !qaQuestion.trim()}
                       style={{ padding: '0 20px' }}
                     >
-                      {qaLoading ? 'Analyzing...' : 'Ask AI'}
+                      {qaLoading ? <RefreshCw size={16} className="animate-spin" /> : <Send size={16} />}
+                      Ask
                     </button>
                   </form>
                 </div>
               )}
 
-              {/* TAB 4: AUDIT TRAIL */}
+              {/* TAB 4: SYSTEM AUDIT TRAIL */}
               {activeTab === 'audit' && (
                 <div>
-                  <h3 style={{ fontSize: '1.05rem', marginBottom: '16px', color: '#ffffff' }}>Chronological Processing Audit</h3>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                    {docDetail.logs.map((l, i) => (
-                      <div
-                        key={i}
-                        style={{
-                          padding: '12px 16px',
-                          borderRadius: 'var(--radius-sm)',
-                          background: 'rgba(255, 255, 255, 0.02)',
-                          border: '1px solid var(--border-subtle)',
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          alignItems: 'center',
-                          gap: '16px',
-                        }}
-                      >
+                  <h3 style={{ fontSize: '1.02rem', marginBottom: '14px', color: '#ffffff' }}>Pipeline Execution Log</h3>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {docDetail.logs.map((l, idx) => (
+                      <div key={idx} style={{ padding: '12px 16px', borderRadius: '6px', background: 'rgba(255, 255, 255, 0.02)', border: '1px solid var(--border-subtle)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <span style={{
-                              fontSize: '0.78rem',
-                              fontWeight: 700,
-                              textTransform: 'uppercase',
-                              color: l.status === 'success' ? '#34d399' : l.status === 'failed' ? '#f87171' : '#fbbf24',
-                            }}>
-                              {l.stage}
-                            </span>
-                            <span className={`badge ${l.status === 'success' ? 'badge-verified' : 'badge-review'}`} style={{ fontSize: '0.65rem' }}>
-                              {l.status}
-                            </span>
+                          <div style={{ fontWeight: 600, fontSize: '0.88rem', color: '#ffffff' }}>
+                            Stage: {l.stage}
                           </div>
-                          {l.message && (
-                            <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginTop: '4px' }}>
-                              {l.message}
-                            </div>
-                          )}
+                          <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                            {l.message || 'Execution completed successfully'}
+                          </div>
                         </div>
-
-                        <div style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                          {l.latency_ms !== null && (
-                            <div style={{ fontSize: '0.78rem', fontWeight: 600, color: '#38bdf8' }}>
-                              {l.latency_ms}ms
+                        <div style={{ textAlign: 'right' }}>
+                          <span style={{ fontSize: '0.72rem', padding: '2px 8px', borderRadius: '4px', background: l.status === 'success' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)', color: l.status === 'success' ? '#34d399' : '#f87171', fontWeight: 600 }}>
+                            {l.status}
+                          </span>
+                          {l.latency_ms !== null && l.latency_ms !== undefined && (
+                            <div style={{ fontSize: '0.72rem', color: 'var(--text-dim)', marginTop: '3px' }}>
+                              {l.latency_ms} ms
                             </div>
                           )}
-                          <div style={{ fontSize: '0.72rem', color: 'var(--text-dim)' }}>
-                            {new Date(l.created_at).toLocaleTimeString()}
-                          </div>
                         </div>
                       </div>
                     ))}
@@ -1342,21 +1495,34 @@ export const Workspace: React.FC<WorkspaceProps> = ({
               {/* TAB 5: RAW EXTRACTED TEXT */}
               {activeTab === 'raw' && (
                 <div>
-                  <h3 style={{ fontSize: '1.05rem', marginBottom: '12px', color: '#ffffff' }}>Extracted Document Text</h3>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                    <h3 style={{ fontSize: '1.02rem', color: '#ffffff' }}>Verbatim Extracted Text</h3>
+                    {rawText && (
+                      <button
+                        className="btn-secondary"
+                        onClick={() => copyToClipboard(rawText, 'rawText')}
+                        style={{ fontSize: '0.75rem', padding: '4px 10px' }}
+                      >
+                        {copiedKey === 'rawText' ? <Check size={12} /> : <Copy size={12} />}
+                        {copiedKey === 'rawText' ? 'Copied Full Text' : 'Copy Full Text'}
+                      </button>
+                    )}
+                  </div>
                   <pre style={{
                     padding: '16px',
                     borderRadius: 'var(--radius-md)',
                     background: 'rgba(0, 0, 0, 0.4)',
                     border: '1px solid var(--border-subtle)',
+                    color: '#94a3b8',
                     fontFamily: 'var(--font-mono)',
                     fontSize: '0.82rem',
-                    color: '#e2e8f0',
-                    maxHeight: '480px',
+                    lineHeight: '1.6',
+                    maxHeight: '500px',
                     overflowY: 'auto',
                     whiteSpace: 'pre-wrap',
-                    lineHeight: '1.6',
+                    wordBreak: 'break-word',
                   }}>
-                    {rawText || 'Loading text...'}
+                    {rawText || 'Loading document text...'}
                   </pre>
                 </div>
               )}

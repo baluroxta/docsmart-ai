@@ -14,6 +14,9 @@ import {
   Sparkles,
   BarChart,
   FileCheck2,
+  Award,
+  Ticket,
+  GraduationCap,
 } from 'lucide-react';
 
 interface LandingPageProps {
@@ -47,7 +50,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
       {/* Hero Section */}
       <section style={{
-        maxWidth: '1200px',
+        maxWidth: '1240px',
         margin: '0 auto',
         padding: '80px 24px 60px 24px',
         textAlign: 'center',
@@ -58,7 +61,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           display: 'inline-flex',
           alignItems: 'center',
           gap: '8px',
-          padding: '6px 14px',
+          padding: '6px 16px',
           borderRadius: '9999px',
           background: 'rgba(6, 182, 212, 0.1)',
           border: '1px solid rgba(6, 182, 212, 0.25)',
@@ -68,7 +71,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           marginBottom: '24px',
         }}>
           <Sparkles size={16} />
-          Enterprise Document Intelligence & Automation
+          Universal Autonomous Document Intelligence Platform
         </div>
 
         <h1 style={{
@@ -78,24 +81,24 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           color: '#ffffff',
           fontWeight: 800,
         }}>
-          Turn Unstructured Documents<br />
+          Turn Any Unstructured Document<br />
           <span style={{
             background: 'linear-gradient(135deg, #38bdf8 0%, #60a5fa 50%, #c084fc 100%)',
             WebkitBackgroundClip: 'text',
             WebkitTextFillColor: 'transparent',
           }}>
-            Into Verified Decisions.
+            Into Verified Business Intelligence.
           </span>
         </h1>
 
         <p style={{
           fontSize: 'clamp(1rem, 2vw, 1.25rem)',
           color: 'var(--text-muted)',
-          maxWidth: '780px',
+          maxWidth: '820px',
           margin: '0 auto 36px auto',
           lineHeight: '1.6',
         }}>
-          DocSmart AI transforms invoices, contracts, and candidate resumes into validated, audit-ready data. Powered by bounded LLM extraction, deterministic arithmetic verification, and grounded citations.
+          DocSmart AI autonomously ingests and parses any PDF, scanned image, credential, booking, invoice, contract, resume, or enterprise report with multi-tier OCR, zero-hallucination grounded extraction, deterministic integrity verification, and citation-backed Q&A.
         </p>
 
         <div style={{
@@ -111,7 +114,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             style={{ padding: '14px 28px', fontSize: '1.02rem' }}
             onClick={onOpenWorkspace}
           >
-            Try the Interactive Demo <ArrowRight size={18} />
+            Launch Enterprise Workspace <ArrowRight size={18} />
           </button>
 
           <button
@@ -119,8 +122,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             style={{ padding: '14px 24px', fontSize: '1.02rem' }}
             onClick={onLoadSamples}
           >
-            <ShieldCheck size={18} color="var(--accent-cyan)" />
-            Load Sample Suite (1-Click)
+            <Database size={18} color="var(--accent-cyan)" />
+            Ingest Benchmark Corpus
           </button>
         </div>
 
@@ -129,38 +132,38 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           display: 'grid',
           gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
           gap: '16px',
-          maxWidth: '960px',
+          maxWidth: '1000px',
           margin: '0 auto',
         }}>
           <div className="glass-panel" style={{ padding: '20px', textAlign: 'left' }}>
-            <div style={{ fontSize: '0.78rem', color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 600 }}>Validation Mode</div>
-            <div style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--status-verified-text)', marginTop: '4px' }}>Fail-Closed</div>
-            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '2px' }}>Never guesses missing values</div>
+            <div style={{ fontSize: '0.78rem', color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 600 }}>Validation Engine</div>
+            <div style={{ fontSize: '1.45rem', fontWeight: 800, color: 'var(--status-verified-text)', marginTop: '4px' }}>Deterministic Audit</div>
+            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '2px' }}>Zero fake guesses or placeholders</div>
           </div>
 
           <div className="glass-panel" style={{ padding: '20px', textAlign: 'left' }}>
-            <div style={{ fontSize: '0.78rem', color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 600 }}>Deterministic Rules</div>
-            <div style={{ fontSize: '1.5rem', fontWeight: 800, color: '#38bdf8', marginTop: '4px' }}>Subtotal + Tax = Total</div>
-            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '2px' }}>Strict mathematical verification</div>
+            <div style={{ fontSize: '0.78rem', color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 600 }}>Multi-Tier Ingestion</div>
+            <div style={{ fontSize: '1.45rem', fontWeight: 800, color: '#38bdf8', marginTop: '4px' }}>PDF & Scanned OCR</div>
+            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '2px' }}>Digital vectors + Windows native OCR</div>
           </div>
 
           <div className="glass-panel" style={{ padding: '20px', textAlign: 'left' }}>
-            <div style={{ fontSize: '0.78rem', color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 600 }}>Document Q&A</div>
-            <div style={{ fontSize: '1.5rem', fontWeight: 800, color: '#c084fc', marginTop: '4px' }}>Verbatim Citations</div>
-            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '2px' }}>Zero hallucinated page references</div>
+            <div style={{ fontSize: '0.78rem', color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 600 }}>Grounded Intelligence</div>
+            <div style={{ fontSize: '1.45rem', fontWeight: 800, color: '#c084fc', marginTop: '4px' }}>Verbatim Citations</div>
+            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '2px' }}>Line-level source verification</div>
           </div>
 
           <div className="glass-panel" style={{ padding: '20px', textAlign: 'left' }}>
-            <div style={{ fontSize: '0.78rem', color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 600 }}>Downstream Hand-off</div>
-            <div style={{ fontSize: '1.5rem', fontWeight: 800, color: '#f59e0b', marginTop: '4px' }}>HMAC Webhook</div>
-            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '2px' }}>n8n / ERP ready with signatures</div>
+            <div style={{ fontSize: '0.78rem', color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 600 }}>Autonomous Hand-off</div>
+            <div style={{ fontSize: '1.45rem', fontWeight: 800, color: '#f59e0b', marginTop: '4px' }}>Signed Webhooks</div>
+            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '2px' }}>n8n, Zapier & ERP API dispatch</div>
           </div>
         </div>
       </section>
 
-      {/* The Business Problem Section */}
+      {/* The Enterprise Document Problem */}
       <section style={{
-        maxWidth: '1200px',
+        maxWidth: '1240px',
         margin: '0 auto',
         padding: '60px 24px',
       }}>
@@ -168,8 +171,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           <h2 style={{ fontSize: '2.2rem', marginBottom: '12px' }}>
             The Enterprise Document Problem
           </h2>
-          <p style={{ color: 'var(--text-muted)', maxWidth: '650px', margin: '0 auto' }}>
-            Enterprises receive thousands of varied invoices, MSAs, and intake forms monthly. Manual handling introduces four critical operational bottlenecks:
+          <p style={{ color: 'var(--text-muted)', maxWidth: '680px', margin: '0 auto' }}>
+            Organizations process diverse unstructured files every day—from commercial contracts and invoices to credentials and travel itineraries. Manual processing introduces four critical bottlenecks:
           </p>
         </div>
 
@@ -191,9 +194,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             }}>
               <AlertTriangle size={22} color="#f87171" />
             </div>
-            <h3 style={{ fontSize: '1.15rem', marginBottom: '8px' }}>Silent Arithmetic Errors</h3>
+            <h3 style={{ fontSize: '1.15rem', marginBottom: '8px' }}>Silent Hallucinations</h3>
             <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)', lineHeight: '1.6' }}>
-              Standard OCR and basic LLM prompts often extract rounded totals while ignoring mismatched line-item additions or tax calculations.
+              Standard LLM prompts invent dummy companies, Delaware laws, or fake numbers when fields are missing. DocSmart AI strictly grounds extractions in verbatim text.
             </p>
           </div>
 
@@ -210,9 +213,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             }}>
               <FileText size={22} color="#fbbf24" />
             </div>
-            <h3 style={{ fontSize: '1.15rem', marginBottom: '8px' }}>Manual Re-Keying Overhead</h3>
+            <h3 style={{ fontSize: '1.15rem', marginBottom: '8px' }}>Scanned & Mixed Format Failures</h3>
             <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)', lineHeight: '1.6' }}>
-              Operations and AP teams spend hundreds of hours manually reading PDFs and typing vendor names, invoice numbers, and line items into ERPs.
+              Basic tools crash when given image-only receipts or scanned tickets. DocSmart uses automatic rasterization and high-speed native OCR to ingest any image or PDF.
             </p>
           </div>
 
@@ -229,9 +232,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             }}>
               <Search size={22} color="#38bdf8" />
             </div>
-            <h3 style={{ fontSize: '1.15rem', marginBottom: '8px' }}>Hallucinated Citations</h3>
+            <h3 style={{ fontSize: '1.15rem', marginBottom: '8px' }}>Unverifiable Answers</h3>
             <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)', lineHeight: '1.6' }}>
-              Generic AI chatbots make up clause numbers or dates when answering inquiries. Enterprise legal ops require non-negotiable verbatim proof.
+              Generic chatbots answer questions without citing where in the document facts came from. DocSmart delivers verbatim quoted excerpts with exact line numbers.
             </p>
           </div>
 
@@ -248,9 +251,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             }}>
               <Lock size={22} color="#c084fc" />
             </div>
-            <h3 style={{ fontSize: '1.15rem', marginBottom: '8px' }}>Zero Audit Visibility</h3>
+            <h3 style={{ fontSize: '1.15rem', marginBottom: '8px' }}>Compliance & Audit Blindspots</h3>
             <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)', lineHeight: '1.6' }}>
-              Black-box processing leaves no record of who extracted what, at what timestamp, and with what latency or validation flags.
+              Enterprise legal and finance operations require complete transparency: immutable cryptographic content hashes, stage latency logs, and automated consistency checks.
             </p>
           </div>
         </div>
@@ -258,53 +261,69 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
       {/* Visual Workflow Architecture Section */}
       <section style={{
-        maxWidth: '1200px',
+        maxWidth: '1240px',
         margin: '0 auto',
         padding: '60px 24px',
       }}>
-        <div style={{ textAlign: 'center', marginBottom: '40px' }}>
-          <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--accent-cyan)', textTransform: 'uppercase', marginBottom: '8px' }}>
-            End-To-End Architecture
+        <div className="glass-panel" style={{ padding: '48px 36px' }}>
+          <div style={{ textAlign: 'center', marginBottom: '40px' }}>
+            <div style={{ fontSize: '0.8rem', color: 'var(--accent-cyan)', fontWeight: 700, textTransform: 'uppercase', marginBottom: '6px' }}>
+              End-to-End Pipeline
+            </div>
+            <h2 style={{ fontSize: '2rem' }}>How DocSmart AI Processes Any Document</h2>
           </div>
-          <h2 style={{ fontSize: '2.2rem', marginBottom: '12px' }}>
-            How DocSmart AI Operates
-          </h2>
-          <p style={{ color: 'var(--text-muted)', maxWidth: '650px', margin: '0 auto' }}>
-            A deterministic, fail-closed pipeline with explicit state machine transitions and complete stage audit logging.
-          </p>
-        </div>
 
-        <div className="glass-panel" style={{ padding: '36px', overflowX: 'auto' }}>
           <div style={{
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            minWidth: '900px',
-            gap: '12px',
+            gap: '16px',
+            flexWrap: 'wrap',
           }}>
             {/* Step 1 */}
-            <div style={{ textAlign: 'center', flex: 1 }}>
+            <div style={{ textAlign: 'center', flex: 1, minWidth: '150px' }}>
               <div style={{
                 width: '48px',
                 height: '48px',
                 borderRadius: '50%',
-                background: 'rgba(56, 189, 248, 0.15)',
+                background: 'rgba(14, 165, 233, 0.15)',
                 border: '1px solid #38bdf8',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 margin: '0 auto 12px auto',
               }}>
-                <FileCheck2 size={22} color="#38bdf8" />
+                <FileText size={22} color="#38bdf8" />
               </div>
               <div style={{ fontWeight: 700, fontSize: '0.95rem', color: '#ffffff' }}>1. Ingestion</div>
-              <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '4px' }}>SHA-256 Deduplication & Type Validation</div>
+              <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '4px' }}>PDF, Scan, PNG, JPG, Text</div>
             </div>
 
             <ArrowRight size={20} color="var(--border-medium)" />
 
             {/* Step 2 */}
-            <div style={{ textAlign: 'center', flex: 1 }}>
+            <div style={{ textAlign: 'center', flex: 1, minWidth: '150px' }}>
+              <div style={{
+                width: '48px',
+                height: '48px',
+                borderRadius: '50%',
+                background: 'rgba(99, 102, 241, 0.15)',
+                border: '1px solid #818cf8',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                margin: '0 auto 12px auto',
+              }}>
+                <Cpu size={22} color="#818cf8" />
+              </div>
+              <div style={{ fontWeight: 700, fontSize: '0.95rem', color: '#ffffff' }}>2. OCR Extraction</div>
+              <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '4px' }}>Native Vectors + Hardware OCR</div>
+            </div>
+
+            <ArrowRight size={20} color="var(--border-medium)" />
+
+            {/* Step 3 */}
+            <div style={{ textAlign: 'center', flex: 1, minWidth: '150px' }}>
               <div style={{
                 width: '48px',
                 height: '48px',
@@ -316,37 +335,16 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 justifyContent: 'center',
                 margin: '0 auto 12px auto',
               }}>
-                <Search size={22} color="#c084fc" />
+                <Layers size={22} color="#c084fc" />
               </div>
-              <div style={{ fontWeight: 700, fontSize: '0.95rem', color: '#ffffff' }}>2. OCR / Parse</div>
-              <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '4px' }}>Fast Native PDF + Tesseract Fallback</div>
-            </div>
-
-            <ArrowRight size={20} color="var(--border-medium)" />
-
-            {/* Step 3 */}
-            <div style={{ textAlign: 'center', flex: 1 }}>
-              <div style={{
-                width: '48px',
-                height: '48px',
-                borderRadius: '50%',
-                background: 'rgba(14, 165, 233, 0.15)',
-                border: '1px solid #0ea5e9',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                margin: '0 auto 12px auto',
-              }}>
-                <Cpu size={22} color="#0ea5e9" />
-              </div>
-              <div style={{ fontWeight: 700, fontSize: '0.95rem', color: '#ffffff' }}>3. AI Classify</div>
-              <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '4px' }}>Bounded 4-Type Schema Selection</div>
+              <div style={{ fontWeight: 700, fontSize: '0.95rem', color: '#ffffff' }}>3. Dynamic Classification</div>
+              <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '4px' }}>Zero-Hallucination Schema</div>
             </div>
 
             <ArrowRight size={20} color="var(--border-medium)" />
 
             {/* Step 4 */}
-            <div style={{ textAlign: 'center', flex: 1 }}>
+            <div style={{ textAlign: 'center', flex: 1, minWidth: '150px' }}>
               <div style={{
                 width: '48px',
                 height: '48px',
@@ -361,13 +359,13 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 <ShieldCheck size={22} color="#34d399" />
               </div>
               <div style={{ fontWeight: 700, fontSize: '0.95rem', color: '#ffffff' }}>4. Verification</div>
-              <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '4px' }}>Deterministic Math & Date Validation</div>
+              <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '4px' }}>Deterministic Math & Date Logic</div>
             </div>
 
             <ArrowRight size={20} color="var(--border-medium)" />
 
             {/* Step 5 */}
-            <div style={{ textAlign: 'center', flex: 1 }}>
+            <div style={{ textAlign: 'center', flex: 1, minWidth: '150px' }}>
               <div style={{
                 width: '48px',
                 height: '48px',
@@ -381,25 +379,25 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               }}>
                 <Workflow size={22} color="#fbbf24" />
               </div>
-              <div style={{ fontWeight: 700, fontSize: '0.95rem', color: '#ffffff' }}>5. Automation</div>
-              <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '4px' }}>HMAC Webhook to n8n / ERP Hub</div>
+              <div style={{ fontWeight: 700, fontSize: '0.95rem', color: '#ffffff' }}>5. Integration</div>
+              <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '4px' }}>Signed Webhooks & CSV/JSON Export</div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Feature Deep Dive */}
+      {/* Universal Document Domains */}
       <section style={{
-        maxWidth: '1200px',
+        maxWidth: '1240px',
         margin: '0 auto',
         padding: '60px 24px',
       }}>
         <div style={{ textAlign: 'center', marginBottom: '48px' }}>
           <h2 style={{ fontSize: '2.2rem', marginBottom: '12px' }}>
-            Built for High-Stakes Enterprise Scenarios
+            Built for Any Document, Across Every Domain
           </h2>
-          <p style={{ color: 'var(--text-muted)', maxWidth: '650px', margin: '0 auto' }}>
-            Designed specifically for consulting deliverables and enterprise AI production deployments.
+          <p style={{ color: 'var(--text-muted)', maxWidth: '680px', margin: '0 auto' }}>
+            DocSmart AI natively handles the entire spectrum of modern digital and scanned documents:
           </p>
         </div>
 
@@ -412,8 +410,56 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           <div className="glass-panel" style={{ padding: '32px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
               <div style={{
-                width: '36px',
-                height: '36px',
+                width: '38px',
+                height: '38px',
+                borderRadius: '8px',
+                background: 'rgba(168, 85, 247, 0.12)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}>
+                <Award size={20} color="#c084fc" />
+              </div>
+              <h3 style={{ fontSize: '1.2rem' }}>Professional Certifications & Degrees</h3>
+            </div>
+            <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)', lineHeight: '1.6', marginBottom: '16px' }}>
+              AWS, Oracle, Microsoft, Google Cloud, and university degrees. Extracts awardee name, accreditation title, issuing body, verification hex/alphanumeric code, issue date, and validity period.
+            </p>
+            <div style={{ fontSize: '0.82rem', color: 'var(--text-dim)' }}>
+              ✓ Validation code verified &nbsp;•&nbsp; ✓ Direct portal link extraction
+            </div>
+          </div>
+
+          {/* Card 2 */}
+          <div className="glass-panel" style={{ padding: '32px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
+              <div style={{
+                width: '38px',
+                height: '38px',
+                borderRadius: '8px',
+                background: 'rgba(16, 185, 129, 0.12)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}>
+                <Ticket size={20} color="#34d399" />
+              </div>
+              <h3 style={{ fontSize: '1.2rem' }}>Travel, Transit & Event Passes</h3>
+            </div>
+            <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)', lineHeight: '1.6', marginBottom: '16px' }}>
+              Booking.com confirmations, railway reservation slips (IRCTC), temple darshan receipts (TTD), and summit passes. Extracts PNRs, booking IDs, reporting venues, attendees, and prices with taxes.
+            </p>
+            <div style={{ fontSize: '0.82rem', color: 'var(--text-dim)' }}>
+              ✓ Multi-passenger parsing &nbsp;•&nbsp; ✓ Schedule chronology check
+            </div>
+          </div>
+
+          {/* Card 3 */}
+          <div className="glass-panel" style={{ padding: '32px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
+              <div style={{
+                width: '38px',
+                height: '38px',
                 borderRadius: '8px',
                 background: 'rgba(56, 189, 248, 0.12)',
                 display: 'flex',
@@ -422,61 +468,85 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               }}>
                 <FileText size={20} color="#38bdf8" />
               </div>
-              <h3 style={{ fontSize: '1.25rem' }}>Accounts Payable (Invoices)</h3>
+              <h3 style={{ fontSize: '1.2rem' }}>Invoices, Bills & Commercial Receipts</h3>
             </div>
             <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)', lineHeight: '1.6', marginBottom: '16px' }}>
-              Extracts vendor name, invoice number, issue/due dates, subtotal, tax, and individual itemized line items. Automatically validates whether sum of line items matches subtotal, and subtotal + tax equals total amount.
+              Vendor name, invoice number, issue and payment due dates, subtotal, GST/tax, and itemized line items. Automatically validates whether line item additions match subtotal and subtotal + tax equals total.
             </p>
             <div style={{ fontSize: '0.82rem', color: 'var(--text-dim)' }}>
-              ✓ Deterministic mathematical check &nbsp;•&nbsp; ✓ CSV Export ready
+              ✓ Arithmetic consistency check &nbsp;•&nbsp; ✓ Line-item verification
             </div>
           </div>
 
-          {/* Card 2 */}
+          {/* Card 4 */}
           <div className="glass-panel" style={{ padding: '32px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
               <div style={{
-                width: '36px',
-                height: '36px',
+                width: '38px',
+                height: '38px',
                 borderRadius: '8px',
-                background: 'rgba(168, 85, 247, 0.12)',
+                background: 'rgba(245, 158, 11, 0.12)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
               }}>
-                <ShieldCheck size={20} color="#c084fc" />
+                <ShieldCheck size={20} color="#fbbf24" />
               </div>
-              <h3 style={{ fontSize: '1.25rem' }}>Legal Operations (Contracts)</h3>
+              <h3 style={{ fontSize: '1.2rem' }}>Contracts, NDAs & Legal Covenants</h3>
             </div>
             <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)', lineHeight: '1.6', marginBottom: '16px' }}>
-              Parses Party A, Party B, effective date, expiration date, annual contract value, and governing law. Flags chronological inversions and conflicting identical party signatures for legal compliance review.
+              Identifies Party A, Party B, effective date, expiration date, consideration valuation, and governing jurisdiction. Protects against inverted dates and conflicting party signatures.
             </p>
             <div style={{ fontSize: '0.82rem', color: 'var(--text-dim)' }}>
-              ✓ Entity identity validation &nbsp;•&nbsp; ✓ Date chronology checks
+              ✓ Legal entity validation &nbsp;•&nbsp; ✓ Jurisdiction mapping
             </div>
           </div>
 
-          {/* Card 3 */}
+          {/* Card 5 */}
           <div className="glass-panel" style={{ padding: '32px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
               <div style={{
-                width: '36px',
-                height: '36px',
+                width: '38px',
+                height: '38px',
                 borderRadius: '8px',
-                background: 'rgba(52, 211, 153, 0.12)',
+                background: 'rgba(236, 72, 153, 0.12)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}>
+                <GraduationCap size={20} color="#f472b6" />
+              </div>
+              <h3 style={{ fontSize: '1.2rem' }}>Resumes, CVs & Candidate Profiles</h3>
+            </div>
+            <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)', lineHeight: '1.6', marginBottom: '16px' }}>
+              Catalogs candidate name, direct email and phone contact details, education history, years of experience, and complete technical skill taxonomy with zero data loss.
+            </p>
+            <div style={{ fontSize: '0.82rem', color: 'var(--text-dim)' }}>
+              ✓ Full skill taxonomy &nbsp;•&nbsp; ✓ Academic credential parsing
+            </div>
+          </div>
+
+          {/* Card 6 */}
+          <div className="glass-panel" style={{ padding: '32px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
+              <div style={{
+                width: '38px',
+                height: '38px',
+                borderRadius: '8px',
+                background: 'rgba(16, 185, 129, 0.12)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
               }}>
                 <Search size={20} color="#34d399" />
               </div>
-              <h3 style={{ fontSize: '1.25rem' }}>Grounded Q&A With Citations</h3>
+              <h3 style={{ fontSize: '1.2rem' }}>Grounded Q&A With Verbatim Citations</h3>
             </div>
             <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)', lineHeight: '1.6', marginBottom: '16px' }}>
-              Ask questions in plain English: "What is the payment deadline?", "Who are the parties?", "What is the total amount?". Every response quotes the exact verbatim source text and section line reference.
+              Ask any natural language question about any uploaded document. Every single response provides the exact excerpt and section line reference without hallucinated references.
             </p>
             <div style={{ fontSize: '0.82rem', color: 'var(--text-dim)' }}>
-              ✓ Zero hallucination &nbsp;•&nbsp; ✓ Verbatim quoted excerpts
+              ✓ Verbatim proof quoting &nbsp;•&nbsp; ✓ Line-by-line attribution
             </div>
           </div>
         </div>
@@ -484,7 +554,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
       {/* CTA Banner */}
       <section style={{
-        maxWidth: '1200px',
+        maxWidth: '1240px',
         margin: '0 auto',
         padding: '40px 24px 80px 24px',
       }}>
@@ -495,17 +565,17 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           borderColor: 'rgba(56, 189, 248, 0.3)',
         }}>
           <h2 style={{ fontSize: '2rem', marginBottom: '12px' }}>
-            Ready to Experience DocSmart AI?
+            Experience Autonomous Enterprise Document Processing
           </h2>
-          <p style={{ color: 'var(--text-muted)', maxWidth: '600px', margin: '0 auto 28px auto' }}>
-            Explore the workspace, inspect real extracted schemas, review deterministic verification checks, and test natural language Q&A.
+          <p style={{ color: 'var(--text-muted)', maxWidth: '640px', margin: '0 auto 28px auto' }}>
+            Upload any document or PDF to inspect extracted schemas, verify deterministic business logic, and query your data via citation-grounded natural language Q&A.
           </p>
           <div style={{ display: 'flex', justifyContent: 'center', gap: '16px', flexWrap: 'wrap' }}>
-            <button className="btn-primary" onClick={onOpenWorkspace} style={{ padding: '12px 24px' }}>
+            <button className="btn-primary" onClick={onOpenWorkspace} style={{ padding: '12px 26px' }}>
               Open Document Workspace <ArrowRight size={16} />
             </button>
             <button className="btn-secondary" onClick={onLoadSamples} style={{ padding: '12px 20px' }}>
-              Load Pre-Configured Test Suite
+              Ingest Benchmark Corpus
             </button>
           </div>
         </div>

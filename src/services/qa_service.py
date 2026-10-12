@@ -107,24 +107,24 @@ _SYNONYMS: dict[str, list[str]] = {
     "location": ["address", "place", "where", "situated", "street", "city", "venue"],
     "contact": ["phone", "email", "address", "reach", "call", "mobile", "helpline", "support"],
     # Travel, Transportation, Flight & Railway
-    "passenger": ["passengers", "traveller", "travellers", "traveler", "travelers", "who is travelling", "who is on the train", "name", "person", "guest", "aramanaidu", "nagasubbareddy"],
-    "passengers": ["passenger", "traveller", "travellers", "traveler", "travelers", "persons", "people", "names", "who is travelling", "aramanaidu", "nagasubbareddy"],
+    "passenger": ["passengers", "traveller", "travellers", "traveler", "travelers", "who is travelling", "who is on the train", "name", "person", "guest", "commuter", "rider"],
+    "passengers": ["passenger", "traveller", "travellers", "traveler", "travelers", "persons", "people", "names", "who is travelling", "commuters"],
     "travelling": ["traveling", "travel", "passenger", "passengers", "board", "boarding", "journey"],
     "traveling": ["travelling", "travel", "passenger", "passengers", "board", "boarding", "journey"],
-    "train": ["railway", "irctc", "express", "venkatadri", "12797", "ers", "slip", "superfast", "rail"],
+    "train": ["railway", "irctc", "express", "ers", "slip", "superfast", "rail", "locomotive"],
     "pnr": ["passenger name record", "pnr number", "reference", "booking id", "ticket number", "confirmation"],
     "flight": ["airline", "boarding pass", "airport", "gate", "terminal", "aircraft", "seat", "flight number"],
-    "route": ["stations", "origin", "destination", "from", "to", "kacheguda", "tirupati", "kcg", "tpty", "distance", "journey"],
-    "station": ["stations", "kacheguda", "tirupati", "kcg", "tpty", "boarding", "destination", "terminal"],
+    "route": ["stations", "origin", "destination", "from", "to", "distance", "journey", "itinerary"],
+    "station": ["stations", "boarding", "destination", "terminal", "junction", "platform", "halt"],
     # Legal, Corporate & Contracts
     "law": ["governing", "jurisdiction", "state", "court", "legal"],
     "terms": ["conditions", "provisions", "clauses", "obligations", "agreement", "rules"],
     # Education, Skills & Career
     "skills": ["technologies", "languages", "tools", "frameworks", "stack", "abilities", "competencies"],
-    "experience": ["years", "employment", "background", "career", "internship", "tcs", "history"],
-    "education": ["degree", "university", "college", "school", "b.tech", "cgpa", "academics", "vit", "qualification"],
-    "projects": ["project", "optionpilot", "earthquake", "built", "work", "platform", "applications"],
-    "certifications": ["certified", "certificate", "aws", "credentials", "licenses"],
+    "experience": ["years", "employment", "background", "career", "internship", "history", "roles", "positions"],
+    "education": ["degree", "university", "college", "school", "b.tech", "cgpa", "academics", "qualification", "gpa", "major"],
+    "projects": ["project", "built", "work", "platform", "applications", "portfolio", "system", "initiative"],
+    "certifications": ["certified", "certificate", "credentials", "licenses", "accreditation"],
     # Healthcare & Clinical
     "diagnosis": ["condition", "findings", "disease", "assessment", "impression", "illness"],
     "prescription": ["medication", "drug", "medicine", "dosage", "rx", "tablets", "capsules"],
@@ -343,6 +343,72 @@ def answer_document_question(
                     "confidence": 0.97,
                 }
 
+        # Check candidate name for resumes
+        if any(k in q_lower for k in ["candidate", "applicant", "who is the resume for", "whose resume", "candidate name", "person"]):
+            c_name = extracted_data.get("candidate_name")
+            if c_name:
+                return {
+                    "answer": f"The resume is for candidate **{c_name}**.",
+                    "found": True,
+                    "citations": [{"excerpt": c_name, "page_or_section": "Candidate Name"}],
+                    "confidence": 0.98,
+                }
+
+        # Match any field from extracted key_fields map
+        if extracted_data.get("key_fields"):
+            kf = extracted_data["key_fields"]
+            # 1. Validation / Certificate code lookup
+            if any(k in q_lower for k in ["validation", "credential id", "certificate id", "verification code", "hex code", "serial"]):
+                for cand_k in ["Validation ID", "Credential ID", "Validation Code", "Certificate ID"]:
+                    if cand_k in kf:
+                        return {
+                            "answer": f"The verified certificate validation code is **{kf[cand_k]}**.",
+                            "found": True,
+                            "citations": [{"excerpt": f"{cand_k}: {kf[cand_k]}", "page_or_section": "Verification Credentials"}],
+                            "confidence": 0.99,
+                        }
+            # 2. Attendee / Pilgrim / Guest lookup
+            if any(k in q_lower for k in ["attendee", "who is attending", "pilgrim", "who is visiting", "who booked", "guest"]):
+                for cand_k in ["Authorized Attendee", "Pilgrims Registered", "Guest / Traveler", "Awardee / Recipient"]:
+                    if cand_k in kf:
+                        return {
+                            "answer": f"Identified individual(s): **{kf[cand_k]}**.",
+                            "found": True,
+                            "citations": [{"excerpt": f"{cand_k}: {kf[cand_k]}", "page_or_section": "Verified Identity"}],
+                            "confidence": 0.98,
+                        }
+            # 3. Organization / College / Authority lookup
+            if any(k in q_lower for k in ["organization", "organisation", "college", "authority", "issuer", "who issued"]):
+                for cand_k in ["Issuing Organization", "Affiliated Organization", "Religious Authority", "Issuing Body", "Institution / College"]:
+                    if cand_k in kf:
+                        return {
+                            "answer": f"The associated authority/organization is **{kf[cand_k]}**.",
+                            "found": True,
+                            "citations": [{"excerpt": f"{cand_k}: {kf[cand_k]}", "page_or_section": "Verified Authority"}],
+                            "confidence": 0.98,
+                        }
+            # 4. Venue / Reporting slot lookup
+            if any(k in q_lower for k in ["venue", "reporting", "reporting time", "where to report", "what time"]):
+                for cand_k in ["Reporting Venue & Slot", "Check-in Date", "Venue / Location"]:
+                    if cand_k in kf:
+                        return {
+                            "answer": f"Reporting details: **{kf[cand_k]}**.",
+                            "found": True,
+                            "citations": [{"excerpt": f"{cand_k}: {kf[cand_k]}", "page_or_section": "Reporting Information"}],
+                            "confidence": 0.98,
+                        }
+            # 5. Direct substring match against any key
+            for field_k, field_v in kf.items():
+                if field_v:
+                    k_clean = field_k.lower()
+                    if any(w in q_lower for w in k_clean.split() if len(w) > 3):
+                        return {
+                            "answer": f"**{field_k}:** {field_v}",
+                            "found": True,
+                            "citations": [{"excerpt": f"{field_k}: {field_v}", "page_or_section": "Verified Document Field"}],
+                            "confidence": 0.97,
+                        }
+
     # -------------------------------------------------------------
     # 4A. RAILWAY & TRAIN RESERVATION TICKET INTELLIGENCE
     # -------------------------------------------------------------
@@ -374,8 +440,19 @@ def answer_document_question(
         
         if passengers_found:
             ans_text = "The passengers travelling on this train ticket are:\n" + "\n".join(passengers_found)
-            if "venkatadri" in full_lower or "12797" in full_lower:
-                ans_text += "\n\nBoth passengers are booked on Train 12797 / VENKATADRI SF from Kacheguda (KCG) to Tirupati (TPTY) under PNR 4953281463."
+            # Dynamically extract train and route from ticket text if present, without hardcoding
+            train_m = re.search(r"\b([0-9]{5}\s*/\s*[A-Za-z0-9\s\-]+?)(?=\n|\r|$|\s*\()", full_text)
+            stn_m = re.search(r"([A-Z\s]+\([A-Z0-9]+\))\s+([A-Z\s]+\([A-Z0-9]+\))\s+([A-Z\s]+\([A-Z0-9]+\))", full_text)
+            pnr_m = re.search(r"\b([0-9]{10})\b", full_text)
+            details = []
+            if train_m:
+                details.append(f"Train: {train_m.group(1).strip()}")
+            if stn_m:
+                details.append(f"Route: {stn_m.group(2).strip()} to {stn_m.group(3).strip()}")
+            if pnr_m:
+                details.append(f"PNR: {pnr_m.group(1)}")
+            if details:
+                ans_text += f"\n\nJourney Details: {', '.join(details)}."
             return {
                 "answer": ans_text,
                 "found": True,
@@ -424,7 +501,7 @@ def answer_document_question(
             t_val = train_m.group(1).strip()
             t_line_idx = next((i for i, l in enumerate(raw_lines, 1) if t_val in l), 7)
             return {
-                "answer": f"The train is {t_val} (Venkatadri Superfast Express).",
+                "answer": f"The train is {t_val}.",
                 "found": True,
                 "citations": [{"excerpt": raw_lines[t_line_idx - 1].strip(), "page_or_section": f"Line {t_line_idx}"}],
                 "confidence": 0.98,
@@ -451,7 +528,7 @@ def answer_document_question(
         arr_m = re.search(r"Arrival\*?\s*([0-9]{2}:[0-9]{2}\s+[0-9]{2}-[A-Za-z]+-[0-9]{4}|[0-9]{2}-[A-Za-z]+-[0-9]{4}\s+[0-9]{2}:[0-9]{2})", full_text)
         if dep_m and arr_m:
             return {
-                "answer": f"Train Schedule:\n- Departure: {dep_m.group(1).strip()} (Kacheguda)\n- Arrival: {arr_m.group(1).strip()} (Tirupati)",
+                "answer": f"Train Schedule:\n- Departure: {dep_m.group(1).strip()}\n- Arrival: {arr_m.group(1).strip()}",
                 "found": True,
                 "citations": [{"excerpt": f"Departure: {dep_m.group(1)} | Arrival: {arr_m.group(1)}", "page_or_section": "Schedule Details"}],
                 "confidence": 0.98,
@@ -505,21 +582,45 @@ def answer_document_question(
     # 4B. RESUME & CANDIDATE GROUNDED INTELLIGENCE
     # -------------------------------------------------------------
     is_resume_doc = (
-        any(k in full_lower for k in ["education", "experience", "skills", "projects", "certifications", "curriculum vitae", "resume"])
-        and any(k in full_lower for k in ["b.tech", "cgpa", "university", "internship", "projects", "certifications", "optionpilot"])
+        any(k in full_lower for k in ["curriculum vitae", "resume", "summary of qualifications", "work experience", "technical skills", "education history", "academic projects", "employment history"])
+        or (("experience" in full_lower or "education" in full_lower) and ("skills" in full_lower or "projects" in full_lower or "certifications" in full_lower))
     )
 
     if is_resume_doc:
         # Candidate Profile / Identity
         if any(k in q_lower for k in ["who is the candidate", "who is this resume of", "whose resume", "candidate name", "who is candidate", "name of candidate", "candidate"]):
-            cand_name = raw_lines[0].strip() if raw_lines else "GURU BALAJI KANDALA"
-            headline_str = raw_lines[1].strip() if len(raw_lines) > 1 else "Computer Science & Business Systems Student"
-            cand_email = next((re.search(r"[\w\.-]+@[\w\.-]+\.\w+", l).group(0) for l in raw_lines if "@" in l), "kandalabalaji1965@gmail.com")
-            cand_phone = next((re.search(r"\b[6-9]\d{9}\b", l).group(0) for l in raw_lines if re.search(r"\b[6-9]\d{9}\b", l)), "6305143995")
+            cand_name = None
+            if extracted_data and extracted_data.get("candidate_name"):
+                cand_name = extracted_data["candidate_name"]
+            if not cand_name:
+                for l in raw_lines[:4]:
+                    clean = l.strip()
+                    if 1 <= len(clean.split()) <= 4 and not any(c in clean.lower() for c in ["@", "phone", "email", "http", "resume", "curriculum", "page"]):
+                        cand_name = clean
+                        break
+            cand_name = cand_name or (raw_lines[0].strip() if raw_lines else "Candidate")
+
+            headline_str = ""
+            for l in raw_lines[1:5]:
+                clean = l.strip()
+                if 10 < len(clean) < 80 and not any(c in clean.lower() for c in ["@", "http", "phone", "+", "|"]):
+                    headline_str = f" ({clean})"
+                    break
+
+            cand_email = next((re.search(r"[\w\.-]+@[\w\.-]+\.\w+", l).group(0) for l in raw_lines if "@" in l), None)
+            cand_phone = next((re.search(r"\b(?:\+?[0-9]{1,3}[-.\s]?)?[0-9]{3,5}[-.\s]?[0-9]{3,4}[-.\s]?[0-9]{3,4}\b", l).group(0) for l in raw_lines if re.search(r"\b[0-9]{10}\b", l)), None)
+
+            contact_parts = []
+            if cand_email:
+                contact_parts.append(f"Email: {cand_email}")
+            if cand_phone:
+                contact_parts.append(f"Phone: {cand_phone}")
+            contact_str = f"\nContact: {' | '.join(contact_parts)}" if contact_parts else ""
+
             return {
-                "answer": f"Candidate: **{cand_name}** ({headline_str}).\nContact: {cand_email} | Phone: {cand_phone}.",
+                "answer": f"Candidate: **{cand_name}**{headline_str}.{contact_str}",
                 "found": True,
-                "citations": [{"excerpt": f"{cand_name} - {headline_str}", "page_or_section": "Lines 1–3"}],
+                "citations": [{"excerpt": f"{cand_name}{headline_str}", "page_or_section": "Candidate Header"}],
                 "confidence": 0.99,
             }
 
@@ -527,15 +628,32 @@ def answer_document_question(
         if any(k in q_lower for k in ["education", "college", "degree", "university", "cgpa", "academics", "qualification"]):
             edu_lines = []
             edu_cites = []
+            in_edu = False
             for i, line in enumerate(raw_lines, 1):
-                if any(k in line.lower() for k in ["b.tech", "institute of technology", "educational institutions", "12th", "10th", "cgpa"]):
-                    edu_lines.append(line.strip())
-                    edu_cites.append({"excerpt": line.strip(), "page_or_section": f"Line {i}"})
+                clean = line.strip()
+                if re.match(r"^(?:education|academics|educational background|qualifications)\b", clean, re.I):
+                    in_edu = True
+                    continue
+                if in_edu:
+                    if re.match(r"^(?:experience|skills|projects|certifications|awards|activities)\b", clean, re.I):
+                        break
+                    if clean:
+                        edu_lines.append(clean)
+                        edu_cites.append({"excerpt": clean, "page_or_section": f"Line {i}"})
+                        if len(edu_lines) >= 6:
+                            break
+            if not edu_lines:
+                for i, line in enumerate(raw_lines, 1):
+                    if any(k in line.lower() for k in ["b.tech", "m.tech", "bachelor", "master", "university", "institute", "college", "school", "cgpa", "diploma", "gpa"]):
+                        edu_lines.append(line.strip())
+                        edu_cites.append({"excerpt": line.strip(), "page_or_section": f"Line {i}"})
+                        if len(edu_lines) >= 4:
+                            break
             if edu_lines:
                 return {
-                    "answer": "Education History:\n- " + "\n- ".join(edu_lines[:4]),
+                    "answer": "Education History:\n- " + "\n- ".join(edu_lines[:5]),
                     "found": True,
-                    "citations": edu_cites[:3],
+                    "citations": edu_cites[:4],
                     "confidence": 0.98,
                 }
 
@@ -543,15 +661,33 @@ def answer_document_question(
         if any(k in q_lower for k in ["project", "projects", "what has he built", "what did he build", "portfolio"]):
             proj_lines = []
             proj_cites = []
+            in_proj = False
             for i, line in enumerate(raw_lines, 1):
-                if any(k in line.lower() for k in ["optionpilot", "earthquake detector", "stock options"]):
-                    proj_lines.append(line.strip())
-                    proj_cites.append({"excerpt": line.strip(), "page_or_section": f"Line {i}"})
+                clean = line.strip()
+                if re.match(r"^(?:projects|academic projects|key projects|selected projects)\b", clean, re.I):
+                    in_proj = True
+                    continue
+                if in_proj:
+                    if re.match(r"^(?:experience|skills|education|certifications|awards|activities|leadership)\b", clean, re.I):
+                        break
+                    if clean:
+                        proj_lines.append(clean)
+                        proj_cites.append({"excerpt": clean, "page_or_section": f"Line {i}"})
+                        if len(proj_lines) >= 6:
+                            break
+            if not proj_lines:
+                for i, line in enumerate(raw_lines, 1):
+                    clean = line.strip()
+                    if any(w in clean.lower() for w in ["platform", "detector", "application", "dashboard", "developed", "built", "implemented", "system"]) and 15 <= len(clean) <= 120:
+                        proj_lines.append(clean)
+                        proj_cites.append({"excerpt": clean, "page_or_section": f"Line {i}"})
+                        if len(proj_lines) >= 4:
+                            break
             if proj_lines:
                 return {
-                    "answer": "Projects Developed:\n1. **OptionPilot – Stock Options Analysis Platform (2026)**: Web-based platform for analyzing stock options with multiple trading strategies (FinTech).\n2. **Earthquake Detector Using Raspberry Pi**: IoT / embedded system detecting ground vibrations with real-time alerts.",
+                    "answer": "Documented Projects:\n- " + "\n- ".join(proj_lines[:5]),
                     "found": True,
-                    "citations": proj_cites[:2],
+                    "citations": proj_cites[:3],
                     "confidence": 0.98,
                 }
 
@@ -559,15 +695,33 @@ def answer_document_question(
         if any(k in q_lower for k in ["experience", "internship", "work experience", "where did he work", "employment", "job"]):
             exp_lines = []
             exp_cites = []
+            in_exp = False
             for i, line in enumerate(raw_lines, 1):
-                if any(k in line.lower() for k in ["tata consultancy services", "tcs", "cyber security analyst", "virtual internship"]):
-                    exp_lines.append(line.strip())
-                    exp_cites.append({"excerpt": line.strip(), "page_or_section": f"Line {i}"})
+                clean = line.strip()
+                if re.match(r"^(?:experience|work experience|employment history|internships?|professional experience)\b", clean, re.I):
+                    in_exp = True
+                    continue
+                if in_exp:
+                    if re.match(r"^(?:skills|education|projects|certifications|awards|activities)\b", clean, re.I):
+                        break
+                    if clean:
+                        exp_lines.append(clean)
+                        exp_cites.append({"excerpt": clean, "page_or_section": f"Line {i}"})
+                        if len(exp_lines) >= 6:
+                            break
+            if not exp_lines:
+                for i, line in enumerate(raw_lines, 1):
+                    clean = line.strip()
+                    if any(w in clean.lower() for w in ["analyst", "intern", "consultancy", "developer", "engineer", "associate", "manager"]) and 15 <= len(clean) <= 120:
+                        exp_lines.append(clean)
+                        exp_cites.append({"excerpt": clean, "page_or_section": f"Line {i}"})
+                        if len(exp_lines) >= 3:
+                            break
             if exp_lines:
                 return {
-                    "answer": "Professional Experience:\n- **Tata Consultancy Services (TCS)**: Cyber Security Analyst, Virtual Internship (Jun 2025). Worked on Identity and Access Management (IAM) and cybersecurity consulting practices.",
+                    "answer": "Professional Experience:\n- " + "\n- ".join(exp_lines[:5]),
                     "found": True,
-                    "citations": exp_cites[:2],
+                    "citations": exp_cites[:3],
                     "confidence": 0.98,
                 }
 
@@ -575,11 +729,28 @@ def answer_document_question(
         if any(k in q_lower for k in ["certification", "certifications", "certified", "credentials"]):
             cert_lines = []
             cert_cites = []
+            in_cert = False
             for i, line in enumerate(raw_lines, 1):
-                if any(k in line.lower() for k in ["aws cloud practitioner", "job simulation", "genai powered"]):
-                    clean_c = re.sub(r"^\(cid:\d+\)\s*", "", line).strip()
-                    cert_lines.append(clean_c)
-                    cert_cites.append({"excerpt": clean_c, "page_or_section": f"Line {i}"})
+                clean = re.sub(r"^\(cid:\d+\)\s*", "", line).strip()
+                if re.match(r"^(?:certifications?|credentials?|licenses?|professional certifications?)\b", clean, re.I):
+                    in_cert = True
+                    continue
+                if in_cert:
+                    if re.match(r"^(?:skills|education|projects|experience|activities)\b", clean, re.I):
+                        break
+                    if clean:
+                        cert_lines.append(clean)
+                        cert_cites.append({"excerpt": clean, "page_or_section": f"Line {i}"})
+                        if len(cert_lines) >= 5:
+                            break
+            if not cert_lines:
+                for i, line in enumerate(raw_lines, 1):
+                    clean = re.sub(r"^\(cid:\d+\)\s*", "", line).strip()
+                    if any(w in clean.lower() for w in ["certified", "certification", "cloud practitioner", "associate", "badge"]) and len(clean) <= 100:
+                        cert_lines.append(clean)
+                        cert_cites.append({"excerpt": clean, "page_or_section": f"Line {i}"})
+                        if len(cert_lines) >= 4:
+                            break
             if cert_lines:
                 return {
                     "answer": "Professional Certifications:\n- " + "\n- ".join(cert_lines[:5]),
@@ -592,28 +763,67 @@ def answer_document_question(
         if any(k in q_lower for k in ["skill", "skills", "tech stack", "technologies", "tools", "languages"]):
             skill_lines = []
             skill_cites = []
+            in_skills = False
             for i, line in enumerate(raw_lines, 1):
-                if any(k in line.lower() for k in ["technology:", "business & analytical:", "professional:"]):
-                    skill_lines.append(line.strip())
-                    skill_cites.append({"excerpt": line.strip(), "page_or_section": f"Line {i}"})
+                clean = line.strip()
+                if re.match(r"^(?:technical skills|skills|technologies|core competencies|tools & technologies)\b", clean, re.I):
+                    in_skills = True
+                    continue
+                if in_skills:
+                    if re.match(r"^(?:education|experience|projects|certifications|awards)\b", clean, re.I):
+                        break
+                    if clean:
+                        skill_lines.append(clean)
+                        skill_cites.append({"excerpt": clean, "page_or_section": f"Line {i}"})
+                        if len(skill_lines) >= 5:
+                            break
+            if not skill_lines:
+                for i, line in enumerate(raw_lines, 1):
+                    if any(k in line.lower() for k in ["technology:", "skills:", "languages:", "tools:"]):
+                        skill_lines.append(line.strip())
+                        skill_cites.append({"excerpt": line.strip(), "page_or_section": f"Line {i}"})
             if skill_lines:
                 return {
-                    "answer": "Verified Skills:\n" + "\n".join(skill_lines),
+                    "answer": "Documented Skills:\n" + "\n".join(f"- {l}" for l in skill_lines),
                     "found": True,
                     "citations": skill_cites,
                     "confidence": 0.98,
                 }
 
-        # Contact Details (Phone / Email)
-        if any(k in q_lower for k in ["phone", "mobile", "number", "email", "contact", "linkedin"]):
-            cand_email = next((re.search(r"[\w\.-]+@[\w\.-]+\.\w+", l).group(0) for l in raw_lines if "@" in l), "kandalabalaji1965@gmail.com")
-            cand_phone = next((re.search(r"\b[6-9]\d{9}\b", l).group(0) for l in raw_lines if re.search(r"\b[6-9]\d{9}\b", l)), "6305143995")
-            return {
-                "answer": f"Contact Details:\n- Email: {cand_email}\n- Phone: {cand_phone}\n- Location: Tirupati Urban, Andhra Pradesh, India\n- LinkedIn: linkedin.com/in/guru-balaji-kandala",
-                "found": True,
-                "citations": [{"excerpt": f"{cand_email} | {cand_phone}", "page_or_section": "Header Contacts"}],
-                "confidence": 0.98,
-            }
+        # Contact Details (Phone / Email / Location / LinkedIn)
+        if any(k in q_lower for k in ["phone", "mobile", "number", "email", "contact", "linkedin", "address", "location"]):
+            email_match = re.search(r"[\w\.-]+@[\w\.-]+\.\w+", full_text)
+            phone_match = re.search(r"\b(?:\+?[0-9]{1,3}[-.\s]?)?[0-9]{3,5}[-.\s]?[0-9]{3,4}[-.\s]?[0-9]{3,4}\b", full_text)
+            linkedin_match = re.search(r"linkedin\.com/in/[a-zA-Z0-9_\-]+", full_text)
+
+            loc_candidate = None
+            for l in raw_lines[:6]:
+                if any(w in l.lower() for w in ["india", "usa", "uk", "street", "road", "city", "pradesh", "urban", "nagar", "avenue", "state"]) and not "@" in l:
+                    loc_candidate = l.strip()
+                    break
+
+            parts = []
+            cites = []
+            if email_match:
+                parts.append(f"- Email: {email_match.group(0)}")
+                cites.append({"excerpt": email_match.group(0), "page_or_section": "Email Contact"})
+            if phone_match:
+                parts.append(f"- Phone: {phone_match.group(0)}")
+                cites.append({"excerpt": phone_match.group(0), "page_or_section": "Phone Contact"})
+            if loc_candidate:
+                parts.append(f"- Location: {loc_candidate}")
+                cites.append({"excerpt": loc_candidate, "page_or_section": "Location Details"})
+            if linkedin_match:
+                parts.append(f"- LinkedIn: {linkedin_match.group(0)}")
+                cites.append({"excerpt": linkedin_match.group(0), "page_or_section": "LinkedIn Profile"})
+
+            if parts:
+                return {
+                    "answer": "Candidate Contact Information:\n" + "\n".join(parts),
+                    "found": True,
+                    "citations": cites,
+                    "confidence": 0.98,
+                }
 
     # -------------------------------------------------------------
     # 4C. GENERAL HIGH-PRECISION TEXT PATTERN EXTRACTION

@@ -40,7 +40,7 @@ class Settings(BaseSettings):
     # Extraction
     confidence_threshold: float = 0.75
     max_upload_size_mb: int = 15
-    allowed_file_types: str = "pdf,png,jpg,jpeg"
+    allowed_file_types: str = "pdf,png,jpg,jpeg,webp,bmp,txt"
 
     # OCR
     tesseract_cmd: str = "/usr/bin/tesseract"

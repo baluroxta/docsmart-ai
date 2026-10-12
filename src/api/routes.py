@@ -25,6 +25,9 @@ _MIME_MAP = {
     ".png": "image/png",
     ".jpg": "image/jpeg",
     ".jpeg": "image/jpeg",
+    ".webp": "image/webp",
+    ".bmp": "image/bmp",
+    ".txt": "text/plain",
 }
 
 
@@ -57,11 +60,16 @@ async def upload_document(
     content_hash = compute_hash(content)
     existing = find_existing_by_hash(db, content_hash)
     if existing:
+        # Reprocess with latest extraction engine to ensure fresh, accurate data
+        existing.status = DocumentStatus.RECEIVED
+        db.commit()
+        process_document(db, existing)
+        db.refresh(existing)
         return UploadResponse(
             document_id=existing.id,
             filename=existing.filename,
             status=existing.status.value,
-            message="Duplicate upload detected; returning existing document (idempotent).",
+            message="Document refreshed and reprocessed with latest intelligence engine.",
         )
 
     file_path = save_upload(content, file.filename, _MIME_MAP.get(f".{ext}", "application/octet-stream"))

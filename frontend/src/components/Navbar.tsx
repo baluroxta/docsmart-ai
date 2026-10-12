@@ -1,5 +1,5 @@
 import React from 'react';
-import { FileText, Cpu, BarChart3, Sparkles, ShieldCheck } from 'lucide-react';
+import { FileText, Cpu, BarChart3, Sparkles, ShieldCheck, Database } from 'lucide-react';
 
 interface NavbarProps {
   activeTab: 'landing' | 'workspace' | 'analytics';
@@ -19,10 +19,10 @@ export const Navbar: React.FC<NavbarProps> = ({
       position: 'sticky',
       top: 0,
       zIndex: 50,
-      background: 'rgba(11, 15, 23, 0.85)',
-      backdropFilter: 'blur(16px)',
+      background: 'rgba(8, 12, 20, 0.88)',
+      backdropFilter: 'blur(18px)',
       borderBottom: '1px solid var(--border-subtle)',
-      padding: '0 24px',
+      padding: '0 28px',
       height: '68px',
       display: 'flex',
       alignItems: 'center',
@@ -30,7 +30,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     }}>
       {/* Brand & Logo */}
       <div 
-        style={{ display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer' }}
+        style={{ display: 'flex', alignItems: 'center', gap: '14px', cursor: 'pointer' }}
         onClick={() => setActiveTab('landing')}
       >
         <div style={{
@@ -41,7 +41,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          boxShadow: '0 0 16px rgba(14, 165, 233, 0.4)',
+          boxShadow: '0 0 18px rgba(14, 165, 233, 0.4)',
         }}>
           <FileText size={20} color="#ffffff" />
         </div>
@@ -53,23 +53,23 @@ export const Navbar: React.FC<NavbarProps> = ({
             <span style={{
               fontSize: '0.65rem',
               fontWeight: 700,
-              padding: '2px 6px',
+              padding: '2px 7px',
               borderRadius: '4px',
               background: 'rgba(56, 189, 248, 0.12)',
               color: 'var(--accent-cyan)',
               border: '1px solid rgba(56, 189, 248, 0.25)',
               textTransform: 'uppercase',
             }}>
-              Enterprise v1.0
+              Enterprise Platform
             </span>
           </div>
           <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', letterSpacing: '0.01em' }}>
-            Turn documents into decisions.
+            Autonomous Document Intelligence & Verification
           </div>
         </div>
       </div>
 
-      {/* Navigation Buttons */}
+      {/* Navigation Tabs */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
         <button
           onClick={() => setActiveTab('landing')}
@@ -108,7 +108,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             gap: '6px',
           }}
         >
-          <Cpu size={16} /> Workspace & Q&A
+          <Cpu size={16} /> Document Intelligence Workspace
         </button>
 
         <button
@@ -128,7 +128,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             gap: '6px',
           }}
         >
-          <BarChart3 size={16} /> Analytics
+          <BarChart3 size={16} /> Operations & Analytics
         </button>
       </div>
 
@@ -139,16 +139,16 @@ export const Navbar: React.FC<NavbarProps> = ({
           onClick={onSeedSamples}
           disabled={isSeeding}
           style={{ fontSize: '0.82rem', padding: '8px 14px' }}
-          title="Seed realistic business documents (Invoice, Contract, Resume) for instant testing"
+          title="Ingest benchmark business document corpus for instant end-to-end evaluation"
         >
-          <ShieldCheck size={16} color="var(--accent-cyan)" />
-          {isSeeding ? 'Seeding...' : 'Load Demo Set'}
+          <Database size={15} color="var(--accent-cyan)" />
+          {isSeeding ? 'Ingesting...' : 'Ingest Benchmark Corpus'}
         </button>
 
         <button
           className="btn-primary"
           onClick={() => setActiveTab('workspace')}
-          style={{ fontSize: '0.82rem', padding: '8px 16px' }}
+          style={{ fontSize: '0.82rem', padding: '8px 18px' }}
         >
           Open Workspace
         </button>
