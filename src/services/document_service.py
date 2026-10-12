@@ -34,12 +34,15 @@ def _log(db: Session, document_id: str, stage: str, status: str, message: str = 
     db.commit()
 
 
-def find_existing_by_hash(db: Session, content_hash: str) -> Document | None:
-    return db.query(Document).filter(Document.content_hash == content_hash).first()
+def find_existing_by_hash(db: Session, content_hash: str, session_id: str | None = None) -> Document | None:
+    query = db.query(Document).filter(Document.content_hash == content_hash)
+    if session_id:
+        query = query.filter(Document.session_id == session_id)
+    return query.first()
 
 
-def create_document(db: Session, filename: str, file_path: str, mime_type: str, content_hash: str) -> Document:
-    doc = Document(filename=filename, file_path=file_path, mime_type=mime_type, content_hash=content_hash)
+def create_document(db: Session, filename: str, file_path: str, mime_type: str, content_hash: str, session_id: str | None = None) -> Document:
+    doc = Document(filename=filename, file_path=file_path, mime_type=mime_type, content_hash=content_hash, session_id=session_id)
     db.add(doc)
     db.commit()
     db.refresh(doc)

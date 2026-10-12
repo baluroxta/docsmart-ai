@@ -31,6 +31,8 @@ import {
   Send,
   Zap,
   Activity,
+  Trash2,
+  Lock,
 } from 'lucide-react';
 import {
   api,
@@ -163,6 +165,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({
   const [detailLoading, setDetailLoading] = useState<boolean>(false);
   const [uploading, setUploading] = useState<boolean>(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [backendOnline, setBackendOnline] = useState<boolean>(true);
   const [reprocessing, setReprocessing] = useState<boolean>(false);
 
   // Search & Filter state
@@ -185,11 +188,13 @@ export const Workspace: React.FC<WorkspaceProps> = ({
       setLoading(true);
       const data = await api.getDocuments();
       setDocuments(data.items);
+      setBackendOnline(true);
       if (data.items.length > 0 && !selectedDocId) {
         setSelectedDocId(data.items[0].id);
       }
     } catch (err: any) {
       console.error('Failed to load documents:', err);
+      setBackendOnline(false);
     } finally {
       setLoading(false);
     }
@@ -238,6 +243,21 @@ export const Workspace: React.FC<WorkspaceProps> = ({
       setUploadError(err.message || 'Failed to upload document');
     } finally {
       setUploading(false);
+    }
+  };
+
+  const handleResetQueue = async () => {
+    try {
+      setLoading(true);
+      await api.resetSession();
+      setDocuments([]);
+      setSelectedDocId(null);
+      setDocDetail(null);
+      setQaHistory([]);
+    } catch (e) {
+      console.error('Reset error:', e);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -533,8 +553,8 @@ export const Workspace: React.FC<WorkspaceProps> = ({
               <span style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--accent-cyan)' }}>
                 System Telemetry & Engine Status
               </span>
-              <span style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.75rem', color: '#34d399', fontWeight: 600 }}>
-                <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#34d399', boxShadow: '0 0 8px #34d399' }} /> Live Pipeline
+              <span style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.75rem', color: backendOnline ? '#34d399' : '#38bdf8', fontWeight: 600 }}>
+                <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: backendOnline ? '#34d399' : '#38bdf8', boxShadow: backendOnline ? '0 0 8px #34d399' : '0 0 8px #38bdf8' }} /> {backendOnline ? 'Cloud Backend (Connected)' : 'Universal Engine (Active)'}
               </span>
             </div>
 
@@ -599,9 +619,31 @@ export const Workspace: React.FC<WorkspaceProps> = ({
             <h2 style={{ fontSize: '1.05rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
               <Layers size={18} color="var(--accent-cyan)" /> Document Queue
             </h2>
-            <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 600 }}>
-              {filteredDocuments.length} of {documents.length}
-            </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+                {filteredDocuments.length} of {documents.length}
+              </span>
+              {documents.length > 0 && (
+                <button
+                  onClick={handleResetQueue}
+                  style={{
+                    background: 'rgba(239, 68, 68, 0.1)',
+                    border: '1px solid rgba(239, 68, 68, 0.25)',
+                    color: '#f87171',
+                    borderRadius: '4px',
+                    padding: '2px 8px',
+                    fontSize: '0.72rem',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                  }}
+                  title="Clear this private tab session and wipe queue"
+                >
+                  <Trash2 size={12} /> Clear
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Search Box */}
@@ -668,8 +710,31 @@ export const Workspace: React.FC<WorkspaceProps> = ({
                 Loading documents...
               </div>
             ) : filteredDocuments.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '30px 0', color: 'var(--text-dim)', fontSize: '0.85rem' }}>
-                No documents match this filter.
+              <div style={{ textAlign: 'center', padding: '30px 16px', color: 'var(--text-dim)', fontSize: '0.85rem' }}>
+                {documents.length === 0 ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
+                    <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: 'rgba(56, 189, 248, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <Layers size={18} color="var(--accent-cyan)" />
+                    </div>
+                    <span style={{ fontWeight: 600, color: '#ffffff' }}>Private Queue Ready</span>
+                    <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', lineHeight: '1.4', maxWidth: '240px' }}>
+                      This tab is completely isolated. Upload any document above or ingest sample benchmarks.
+                    </span>
+                    <button
+                      className="btn-secondary"
+                      onClick={async () => {
+                        await onSeedSamples();
+                        await loadDocuments();
+                      }}
+                      disabled={isSeeding}
+                      style={{ fontSize: '0.75rem', padding: '6px 12px', marginTop: '4px' }}
+                    >
+                      <Database size={13} color="var(--accent-cyan)" /> Load Samples
+                    </button>
+                  </div>
+                ) : (
+                  'No documents match this filter.'
+                )}
               </div>
             ) : (
               filteredDocuments.map((doc) => {
@@ -758,9 +823,42 @@ export const Workspace: React.FC<WorkspaceProps> = ({
         {/* Right Column: Detailed Document Inspector */}
         <div className="glass-panel" style={{ padding: '28px', minHeight: '700px' }}>
           {!selectedDocId || !docDetail ? (
-            <div style={{ textAlign: 'center', padding: '100px 0', color: 'var(--text-dim)' }}>
-              <FileText size={48} style={{ margin: '0 auto 16px auto', opacity: 0.3 }} />
-              <div>Select a document from the queue to inspect verified fields.</div>
+            <div style={{ textAlign: 'center', padding: '90px 24px', color: 'var(--text-dim)' }}>
+              <div style={{
+                width: '64px',
+                height: '64px',
+                borderRadius: '16px',
+                background: 'rgba(56, 189, 248, 0.08)',
+                border: '1px solid rgba(56, 189, 248, 0.2)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                margin: '0 auto 20px auto',
+              }}>
+                <FileText size={32} color="var(--accent-cyan)" />
+              </div>
+              <h3 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#ffffff', marginBottom: '8px' }}>
+                {documents.length === 0 ? 'Private Document Queue is Empty' : 'Select a Document to Inspect'}
+              </h3>
+              <p style={{ maxWidth: '440px', margin: '0 auto 24px auto', fontSize: '0.88rem', lineHeight: '1.5', color: 'var(--text-muted)' }}>
+                {documents.length === 0 
+                  ? 'Your session is isolated and completely private to this browser tab. Drop any PDF, image, ticket, contract, or invoice above to extract structured intelligence, or load sample documents.'
+                  : 'Click any document in the left queue to view verified fields, compliance audits, and ask grounded questions.'
+                }
+              </p>
+              {documents.length === 0 && (
+                <button
+                  className="btn-primary"
+                  onClick={async () => {
+                    await onSeedSamples();
+                    await loadDocuments();
+                  }}
+                  disabled={isSeeding}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '10px 22px', fontSize: '0.88rem' }}
+                >
+                  <Database size={16} /> {isSeeding ? 'Loading Sample Corpus...' : 'Load Enterprise Benchmark Corpus'}
+                </button>
+              )}
             </div>
           ) : detailLoading ? (
             <div style={{ textAlign: 'center', padding: '100px 0', color: 'var(--text-dim)' }}>

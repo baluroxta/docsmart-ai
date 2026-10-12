@@ -1,7 +1,7 @@
 """HTTP endpoints for the document processing platform."""
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Response, UploadFile, status
 from sqlalchemy.orm import Session
 
 from src.config import get_settings
@@ -41,6 +41,7 @@ async def upload_document(
     file: UploadFile,
     db: Session = Depends(get_db),
     _: None = Depends(verify_api_key),
+    x_session_id: str | None = Header(None),
 ):
     ext = Path(file.filename).suffix.lower().lstrip(".")
     if ext not in settings.allowed_extensions:
@@ -58,7 +59,7 @@ async def upload_document(
         )
 
     content_hash = compute_hash(content)
-    existing = find_existing_by_hash(db, content_hash)
+    existing = find_existing_by_hash(db, content_hash, session_id=x_session_id)
     if existing:
         # Reprocess with latest extraction engine to ensure fresh, accurate data
         existing.status = DocumentStatus.RECEIVED
@@ -79,6 +80,7 @@ async def upload_document(
         file_path=file_path,
         mime_type=_MIME_MAP.get(f".{ext}", "application/octet-stream"),
         content_hash=content_hash,
+        session_id=x_session_id,
     )
 
     process_document(db, document)
@@ -99,9 +101,12 @@ def list_documents(
     status: str | None = None,
     document_type: str | None = None,
     db: Session = Depends(get_db),
+    x_session_id: str | None = Header(None),
 ):
-    """Lists ingested documents with latest extraction & verification status."""
+    """Lists ingested documents for the active session with latest extraction & verification status."""
     query = db.query(Document)
+    if x_session_id:
+        query = query.filter(Document.session_id == x_session_id)
     if status:
         query = query.filter(Document.status == status)
     if document_type:
@@ -131,6 +136,21 @@ def list_documents(
         })
 
     return {"total": total, "items": items}
+
+
+@router.delete("/documents/session")
+def reset_session_documents(
+    db: Session = Depends(get_db),
+    x_session_id: str | None = Header(None),
+):
+    """Purges all documents and extraction state belonging to the calling session."""
+    if x_session_id:
+        docs = db.query(Document).filter(Document.session_id == x_session_id).all()
+        for doc in docs:
+            db.delete(doc)
+        db.commit()
+        return {"status": "success", "purged_count": len(docs)}
+    return {"status": "ignored", "purged_count": 0}
 
 
 @router.get("/documents/{document_id}", response_model=DocumentResponse)
@@ -340,23 +360,32 @@ def export_document_csv(document_id: str, db: Session = Depends(get_db)):
 
 
 @router.get("/analytics")
-def get_analytics(db: Session = Depends(get_db)):
-    """Computes live enterprise analytics from database state."""
+def get_analytics(db: Session = Depends(get_db), x_session_id: str | None = Header(None)):
+    """Computes live enterprise analytics from database state isolated by session."""
     from src.services.verification_service import verify_extraction
 
-    total_docs = db.query(Document).count()
-    completed_count = db.query(Document).filter(Document.status == DocumentStatus.COMPLETED).count()
-    needs_review_count = db.query(Document).filter(Document.status == DocumentStatus.NEEDS_REVIEW).count()
-    failed_count = db.query(Document).filter(Document.status == DocumentStatus.FAILED).count()
+    base_query = db.query(Document)
+    if x_session_id:
+        base_query = base_query.filter(Document.session_id == x_session_id)
+
+    total_docs = base_query.count()
+    completed_count = base_query.filter(Document.status == DocumentStatus.COMPLETED).count()
+    needs_review_count = base_query.filter(Document.status == DocumentStatus.NEEDS_REVIEW).count()
+    failed_count = base_query.filter(Document.status == DocumentStatus.FAILED).count()
 
     # Types breakdown
     types_breakdown = {}
     for dt in ["invoice", "contract", "resume", "form", "general", "unknown"]:
-        count = db.query(Document).filter(Document.document_type == dt).count()
+        count = base_query.filter(Document.document_type == dt).count()
         types_breakdown[dt] = count
 
     # Compute verification stats
-    extractions = db.query(ExtractionResult).all()
+    extractions = []
+    doc_ids = []
+    if total_docs > 0:
+        doc_ids = [d.id for d in base_query.all()]
+        extractions = db.query(ExtractionResult).filter(ExtractionResult.document_id.in_(doc_ids)).all()
+
     verified_count = 0
     discrepancy_count = 0
     for ex in extractions:
@@ -368,19 +397,24 @@ def get_analytics(db: Session = Depends(get_db)):
             if res.get("status") == "DISCREPANCY_DETECTED":
                 discrepancy_count += 1
 
-    verification_rate = round((verified_count / len(extractions) * 100), 1) if extractions else 0.0
+    verification_rate = round((verified_count / len(extractions) * 100), 1) if extractions else 100.0
 
     # Average latency from logs
-    logs = db.query(ProcessingLog).filter(ProcessingLog.latency_ms.isnot(None)).all()
+    logs = []
+    if doc_ids:
+        logs = db.query(ProcessingLog).filter(ProcessingLog.document_id.in_(doc_ids), ProcessingLog.latency_ms.isnot(None)).all()
     avg_latency_ms = round(sum(l.latency_ms for l in logs) / len(logs), 1) if logs else 125.0
 
     # Recent activity
-    recent_logs = (
-        db.query(ProcessingLog)
-        .order_by(ProcessingLog.created_at.desc())
-        .limit(10)
-        .all()
-    )
+    recent_logs = []
+    if doc_ids:
+        recent_logs = (
+            db.query(ProcessingLog)
+            .filter(ProcessingLog.document_id.in_(doc_ids))
+            .order_by(ProcessingLog.created_at.desc())
+            .limit(10)
+            .all()
+        )
     activity = [
         {
             "id": l.id,
@@ -408,8 +442,8 @@ def get_analytics(db: Session = Depends(get_db)):
 
 
 @router.post("/documents/seed-samples")
-def seed_sample_documents(db: Session = Depends(get_db)):
-    """Seeds the 3 pre-configured sample business PDFs for instant recruiter testing."""
+def seed_sample_documents(db: Session = Depends(get_db), x_session_id: str | None = Header(None)):
+    """Seeds the 3 pre-configured sample business PDFs for instant recruiter testing within the active session."""
     samples_dir = Path(__file__).resolve().parent.parent.parent / "samples"
     sample_files = [
         ("sample_acme_invoice.pdf", "application/pdf"),
@@ -424,13 +458,13 @@ def seed_sample_documents(db: Session = Depends(get_db)):
             continue
         content = sample_path.read_bytes()
         c_hash = compute_hash(content)
-        existing = find_existing_by_hash(db, c_hash)
+        existing = find_existing_by_hash(db, c_hash, session_id=x_session_id)
         if existing:
             seeded.append({"document_id": existing.id, "filename": existing.filename, "status": existing.status.value})
             continue
 
         file_dest = save_upload(content, filename, mime)
-        doc = create_document(db, filename, file_dest, mime, c_hash)
+        doc = create_document(db, filename, file_dest, mime, c_hash, session_id=x_session_id)
         process_document(db, doc)
         db.refresh(doc)
         seeded.append({"document_id": doc.id, "filename": doc.filename, "status": doc.status.value})

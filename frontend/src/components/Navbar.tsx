@@ -134,6 +134,21 @@ export const Navbar: React.FC<NavbarProps> = ({
 
       {/* Action CTA */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '6px',
+          background: 'rgba(255, 255, 255, 0.04)',
+          border: '1px solid var(--border-subtle)',
+          padding: '5px 10px',
+          borderRadius: '20px',
+          fontSize: '0.72rem',
+          color: 'var(--text-muted)',
+        }} title="Each browser tab is an isolated session. Documents are never shared between visitors.">
+          <ShieldCheck size={13} color="#34d399" />
+          <span>Private Session</span>
+        </div>
+
         <button
           className="btn-secondary"
           onClick={onSeedSamples}

@@ -32,8 +32,9 @@ class Document(Base):
     __tablename__ = "documents"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    session_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
     filename: Mapped[str] = mapped_column(String(512))
-    content_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    content_hash: Mapped[str] = mapped_column(String(64), index=True)
     file_path: Mapped[str] = mapped_column(String(1024))
     mime_type: Mapped[str] = mapped_column(String(128))
     document_type: Mapped[DocumentType] = mapped_column(Enum(DocumentType), default=DocumentType.UNKNOWN)

@@ -18,10 +18,15 @@ logging.basicConfig(level=settings.log_level)
 
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncGenerator[None, None]:
-    # Convenience for local dev; production deployments should manage
-    # schema migrations explicitly (see scripts/init_db.py / Alembic note in docs).
     if settings.app_env == "development":
         Base.metadata.create_all(bind=engine)
+        from sqlalchemy import text
+        with engine.connect() as conn:
+            try:
+                conn.execute(text("ALTER TABLE documents ADD COLUMN session_id VARCHAR(64)"))
+                conn.commit()
+            except Exception:
+                pass
     yield
 
 
